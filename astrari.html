@@ -25,7 +25,8 @@
   @media (max-width:440px){#phone{width:100%;height:100%;}}
 
   /* TOP HUD */
-  #top{position:absolute;z-index:6;top:0;left:0;right:0;padding:8px 12px;
+  #top{position:absolute;z-index:6;top:0;left:0;right:0;
+    padding:calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px calc(12px + env(safe-area-inset-left));
     background:linear-gradient(180deg,rgba(7,11,22,.92),rgba(7,11,22,0));pointer-events:none;}
   #toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
   #res{display:flex;gap:6px;flex-wrap:wrap;}
@@ -43,13 +44,15 @@
   #game{position:absolute;inset:0;z-index:1;touch-action:none;cursor:pointer;display:block;}
 
   /* ACTION PROMPT */
-  #prompt{position:absolute;z-index:5;bottom:96px;left:50%;transform:translateX(-50%);
+  #prompt{position:absolute;z-index:5;bottom:calc(96px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
     background:rgba(18,28,51,.92);border:1px solid var(--teal);border-radius:20px;padding:8px 16px;
     font-size:12px;font-weight:700;opacity:0;transition:.2s;pointer-events:none;white-space:nowrap;}
   #prompt.show{opacity:1;}
 
   /* BOTTOM DOCK */
   #dock{position:absolute;z-index:6;bottom:0;left:0;right:0;display:flex;
+    padding-bottom:env(safe-area-inset-bottom);
+    padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
     background:linear-gradient(180deg,rgba(13,20,38,.6),rgba(7,11,22,.97));backdrop-filter:blur(8px);border-top:1px solid var(--line);}
   .dbtn{flex:1;text-align:center;padding:8px 2px 11px;cursor:pointer;color:var(--dim);font-size:9.5px;letter-spacing:.4px;position:relative;}
   .dbtn .ti{font-size:19px;display:block;margin-bottom:1px;}
@@ -57,7 +60,7 @@
   .dbtn .badge{position:absolute;top:4px;left:50%;margin-left:4px;background:var(--bad);color:#fff;font-size:8px;border-radius:8px;padding:0 4px;font-weight:800;}
 
   /* TOAST */
-  #toast{position:absolute;z-index:30;bottom:98px;left:50%;transform:translateX(-50%) translateY(16px);
+  #toast{position:absolute;z-index:30;bottom:calc(98px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(16px);
     background:var(--panel2);border:1px solid var(--teal);color:var(--txt);padding:8px 16px;border-radius:22px;
     font-size:12px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;max-width:88%;text-align:center;}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -369,7 +372,7 @@ function spawnMonsters(){
   monsters=[];
   const els=Object.keys(ELEM);
   function addMon(x,y,lvl,el){ monsters.push({x,y,bx:x,by:y,el,lvl,
-    maxhp:60+lvl*22,hp:60+lvl*22,atk:10+lvl*4,alive:true,t:R()*5,face:'down',cd:0,kind:R()<.5?'maw':'shade'}); }
+    maxhp:70+lvl*42,hp:70+lvl*42,atk:10+lvl*6,alive:true,t:R()*5,face:'down',cd:0,kind:R()<.5?'maw':'shade'}); }
   let placed=0;
   for(let i=0;i<14&&placed<14;i++){
     const x=15+(R()*17|0), y=31+(R()*9|0);
@@ -1248,8 +1251,8 @@ function rollLoot(m){
   if(Math.random()<0.18) add('fish', 1);
   // gear drop — chance + tier scale with level
   let gear=null;
-  if(Math.random()<0.07+lv*0.013){
-    let tier= lv<6?1: lv<14?2:3;
+  if(Math.random()<0.05+lv*0.009){
+    let tier= lv<8?1: lv<18?2:3;
     if(Math.random()<0.15) tier=Math.min(3,tier+1);
     const pool=Object.values(GEAR).filter(g=>g.tier===tier);
     gear=pool[Math.random()*pool.length|0].id;
@@ -1264,13 +1267,18 @@ function startEncounter(m){
   const allies=[{name:'You (Warden)',spec:wardenSpec(),el:'light',atk:Math.round(w.atk*(1+w.teamAtk)),hp:w.hp,maxhp:w.hp,alive:true,warden:true}];
   S.squad.filter(Boolean).forEach(id=>{const d=champDef(id),h=S.heroes[id],lv=h.lvl,grow=1+(lv-1)*0.12,mu=RAR[d.rar].mult;
     allies.push({name:d.name.split(' ')[0],spec:champSpec(id),el:d.el,atk:Math.round(d.atk*grow*mu*(1+w.teamAtk)),hp:Math.round(d.hp*grow*mu),maxhp:Math.round(d.hp*grow*mu),alive:true});});
-  // foe group scales with monster level + a couple minions
-  const foes=[];const base=m.lvl;
-  const cnt=2+Math.min(3,Math.floor(base/2));
-  for(let i=0;i<cnt;i++){const el=i===0?m.el:Object.keys(ELEM)[(m.lvl+i)%5];
-    const lv=base+(i?-(i):0);foes.push({name:(i?'Hollow Spawn':'Hollow '+(m.kind==='maw'?'Maw':'Shade')),spec:{kind:'monster',cloak:ELEM[el].col,glow:'#ff5a7a'},el,
-      atk:8+lv*4,hp:50+lv*22,maxhp:50+lv*22,alive:true});}
-  battleData={allies,foes,mon:m};
+  // foe group scales with monster level AND the warden's level (they keep pace), plus region danger
+  const region=(m.bx>=40)?4:(m.bx<=6?2:0);
+  const base=Math.max(m.lvl, combatLevel()-3+region);
+  const foes=[];
+  const cnt=3+Math.min(3,Math.floor(base/3));
+  for(let i=0;i<cnt;i++){const boss=i===0;const el=boss?m.el:Object.keys(ELEM)[(base+i)%5];
+    const lv=Math.max(1,base-(boss?0:1+(i%2)));
+    const hp=Math.round((70+lv*42)*(boss?1.4:1));
+    foes.push({name:boss?('Hollow '+(m.kind==='maw'?'Maw':'Shade')):'Hollow Spawn',
+      spec:{kind:'monster',cloak:ELEM[el].col,glow:'#ff5a7a'},el,
+      atk:Math.round((10+lv*6)*(boss?1.25:1)),hp,maxhp:hp,alive:true});}
+  battleData={allies,foes,mon:m,eff:base};
   showBattleModal();
 }
 let battleData=null;
@@ -1282,7 +1290,7 @@ function unitRow(u,side,i){
 }
 function showBattleModal(){
   const {allies,foes,mon}=battleData;
-  modal(`<h2>Skirmish · Lv ${mon.lvl} Hollow</h2>
+  modal(`<h2>Skirmish · Lv ${battleData.eff||mon.lvl} Hollow</h2>
     <div class="arena"><div class="side" id="ba">${allies.map((u,i)=>unitRow(u,'ally',i)).join('')}</div>
       <div class="vs">VS</div><div class="side" id="bf">${foes.map((u,i)=>unitRow(u,'foe',i)).join('')}</div></div>
     <div id="blog"></div>
@@ -1321,17 +1329,17 @@ function endBattle(win,fled){
   const m=battleData.mon;
   if(fled){blog('You slip away into the mist.');}
   else if(win){
-    const lv=m.lvl;
+    const lv=battleData.eff||m.lvl;
     const rew={astral:20+lv*8,shard:lv%3===0?2:0};
     S.res.astral+=rew.astral;S.res.shard+=rew.shard;
-    const loot=rollLoot(m);
+    const loot=rollLoot({lvl:lv});
     let lootStr='';
     for(const k in loot.mats){S.res[k]+=loot.mats[k];lootStr+=` +${loot.mats[k]}${RESINFO[k]||k}`;}
-    const cxp=18+lv*6;const before=combatLevel();S.combatXp+=cxp;const after=combatLevel();
+    const cxp=12+lv*4;const before=combatLevel();S.combatXp+=cxp;const after=combatLevel();
     S.quests.fight=(S.quests.fight||0)+1;
     m.alive=false;
-    // respawn this monster after a while, slightly tougher
-    setTimeout(()=>{m.alive=true;m.hp=m.maxhp;m.lvl=Math.min(20,m.lvl+1);m.maxhp=60+m.lvl*22;m.hp=m.maxhp;m.atk=10+m.lvl*4;}, 20000);
+    // respawn fast and tougher — enemies level up quickly and chase the warden's level
+    setTimeout(()=>{m.alive=true;m.lvl=Math.min(50,Math.max(m.lvl+2,combatLevel()-2));m.maxhp=70+m.lvl*42;m.hp=m.maxhp;m.atk=10+m.lvl*6;}, 14000);
     blog(`<b style="color:var(--good)">✦ Victory! +${rew.astral}◈${rew.shard?' +'+rew.shard+'✦':''}${lootStr} · +${cxp} combat xp</b>`);
     if(loot.gear){S.gear.push(loot.gear);blog(`<b style="color:${RAR_T(GEAR[loot.gear].tier)}">⚔ Loot drop: ${GEAR[loot.gear].name}! (in your Bag)</b>`);}
     if(after>before)blog(`<b style="color:var(--gold)">Warden reached Level ${after}!</b>`);
