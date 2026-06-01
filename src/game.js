@@ -1818,6 +1818,13 @@ function welcome(){
 }
 function fmtT(s){s=Math.floor(s);const h=s/3600|0,m=s%3600/60|0;return(h?h+'h ':'')+m+'m';}
 
+// Expose functions used by inline HTML on* handlers. Since the game is now an
+// ES module, these are module-scoped and otherwise invisible to inline onclick=.
+Object.assign(window, {
+  closeModal, cancelFishing, champDetail, claimQuest, craft, doSummon, equip, unequip,
+  hardReset, levelHero, panelCodex, panelQuests, panelSummon, sellMats, toggleAudio, toggleSquad, save,
+});
+
 updateHUD();
 welcome();
 requestAnimationFrame(loop);
