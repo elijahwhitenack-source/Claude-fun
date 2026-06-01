@@ -1124,7 +1124,19 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 let promptTimer;
 function showPrompt(msg,ms){const p=$('#prompt');p.textContent=msg;p.classList.add('show');clearTimeout(promptTimer);if(ms)promptTimer=setTimeout(()=>p.classList.remove('show'),ms);}
 function hidePrompt(){$('#prompt').classList.remove('show');}
-function modal(html,noClose){$('#mbox').innerHTML=(noClose?'':'<span class="close" onclick="closeModal()">✕</span>')+html;$('#modal').classList.add('show');}
+function modal(html,noClose){
+  const mb=$('#mbox'), me=$('#modal');
+  const refreshing=me.classList.contains('show');           // re-render of an already-open panel
+  const prevScroll=refreshing?mb.scrollTop:0;
+  mb.innerHTML=(noClose?'':'<span class="close" onclick="closeModal()">✕</span>')+html;
+  me.classList.add('show');
+  if(refreshing){ mb.scrollTop=prevScroll;                  // keep the player where they were
+    mb.classList.remove('refresh'); void mb.offsetWidth; mb.classList.add('refresh'); }
+  else mb.classList.remove('refresh');
+}
+// brief highlight pulse on a freshly-rendered element to confirm an action landed
+function flashEl(sel,gold){ const el=typeof sel==='string'?$(sel):sel; if(!el)return;
+  const c=gold?'flash-gold':'flash'; el.classList.remove(c); void el.offsetWidth; el.classList.add(c); }
 function closeModal(){$('#modal').classList.remove('show');if(fish){cancelAnimationFrame(fish.raf);fish=null;player.busy=false;}}
 
 /* ===================================================================
@@ -1234,8 +1246,8 @@ function drawGearIcon(cx,g){
     for(let i=0;i<6;i++){const a=i/6*7;cx.lineTo(Math.cos(a)*11,Math.sin(a)*11);}cx.closePath();cx.fill();}
   cx.restore();
 }
-function equip(id){const g=GEAR[id];S.equip[g.slot]=id;save();updateHUD();panelBag();toast('Equipped '+g.name);}
-function unequip(slot){S.equip[slot]=null;save();updateHUD();panelBag();}
+function equip(id){const g=GEAR[id];S.equip[g.slot]=id;save();updateHUD();panelBag();toast('Equipped '+g.name);flashEl('canvas[data-gear="'+g.slot+'"]');}
+function unequip(slot){const g=S.equip[slot]&&GEAR[S.equip[slot]];S.equip[slot]=null;save();updateHUD();panelBag();toast((g?g.name:'Item')+' unequipped');flashEl('canvas[data-gear="'+slot+'"]');}
 function drawInvCanvases(){$$('#mbox canvas.ginv').forEach(c=>drawGearIcon(c.getContext('2d'),GEAR[c.dataset.g]));}
 
 /* ---- CRAFT ---- */
@@ -1252,7 +1264,7 @@ function panelCraft(forceStation){
     const costHtml=Object.entries(r.cost).map(([k,v])=>`<span style="color:${S.res[k]>=v?'var(--good)':'var(--bad)'}">${RESINFO[k]||k}${v}</span>`).join(' ');
     const can=ok&&stationOk&&afford;
     let why=!ok?`Needs Smithing Lv ${r.lvl}`:!stationOk?`Go to the ${r.station==='forge'?'Star-Forge ⚒️':'Shrine ✦'}`:!afford?'Not enough materials':'Ready';
-    return `<div class="recipe"><div class="rt"><span>${g.name}</span><span class="chip" style="color:${RAR_T(g.tier)}">T${g.tier}</span></div>
+    return `<div class="recipe" data-r="${r.id}"><div class="rt"><span>${g.name}</span><span class="chip" style="color:${RAR_T(g.tier)}">T${g.tier}</span></div>
       <div class="muted">${gearDesc(g)}</div>
       <div class="cost">Cost: ${costHtml} <span style="color:var(--dim)">· ${why}</span></div>
       <button class="btn ${can?'gold':'ghost'} sm" style="width:100%" ${can?'':'disabled'} onclick="craft('${r.id}')">⚒ Forge (+25 smithing xp)</button></div>`;
@@ -1270,10 +1282,11 @@ function craft(id){
   for(const[k,v]of Object.entries(r.cost))S.res[k]-=v;
   S.gear.push(r.out); gainXp('smithing',25);
   updateObjective('craft', r.out, 1);
+  const g=GEAR[r.out]; if(!S.equip[g.slot])S.equip[g.slot]=r.out; // auto-equip if slot empty
   save();updateHUD();panelCraft();drawInvCanvases?.();
-  toast('Forged '+GEAR[r.out].name+'! 🔨');
-  // auto-equip if slot empty
-  const g=GEAR[r.out]; if(!S.equip[g.slot]){S.equip[g.slot]=r.out;updateHUD();}
+  flashEl('.recipe[data-r="'+id+'"]',true);
+  burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,g.col,14,80);
+  toast('Forged '+g.name+'! 🔨');
 }
 
 /* ---- SKILLS ---- */
@@ -1355,7 +1368,9 @@ function champDetail(id){
   const grow=1+(lv-1)*0.12,m=R.mult,atk=Math.round(d.atk*grow*m),hp=Math.round(d.hp*grow*m);
   const inSquad=S.squad.includes(id),upCost=Math.floor(40*Math.pow(lv,1.5));
   const legend=d.rar==='legend';
-  modal(`<canvas id="cd" width="120" height="120" style="display:block;margin:4px auto;background:#0e1729;border-radius:14px;${legend?'box-shadow:0 0 22px rgba(255,206,84,.4)':'box-shadow:0 0 16px '+e.col+'55'}"></canvas>
+  modal(`<div style="margin:-2px 0 8px"><button class="btn ghost sm" style="padding:4px 12px" onclick="panelChamps()">‹ Champions</button>
+      ${inSquad?'<span class="pill" style="color:var(--good);margin-left:6px">⚔ In Squad</span>':''}</div>
+    <canvas id="cd" width="120" height="120" style="display:block;margin:4px auto;background:#0e1729;border-radius:14px;${legend?'box-shadow:0 0 22px rgba(255,206,84,.4)':'box-shadow:0 0 16px '+e.col+'55'}"></canvas>
     <h3 class="center"${legend?' style="background:linear-gradient(90deg,var(--gold),#fff3c4 45%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent"':''}>${d.name}</h3><div class="muted center" style="margin-bottom:8px">${d.role}</div>
     <div class="center" style="margin-bottom:8px"><span class="pill"><span class="elem ${e.c}">${e.n[0]}</span> ${e.n}</span>
       <span class="pill" style="color:var(--legend)">${'★'.repeat(R.stars)}</span><span class="pill">Lv ${lv} ×${h.count}</span></div>
@@ -1367,10 +1382,14 @@ function champDetail(id){
 }
 function levelHero(id){const h=S.heroes[id],cost=Math.floor(40*Math.pow(h.lvl,1.5));
   if(S.res.astral<cost)return toast('Need more Astral ◈');if(h.lvl>=80)return toast('Max ascension');
-  S.res.astral-=cost;h.lvl++;save();updateHUD();champDetail(id);}
+  S.res.astral-=cost;h.lvl++;save();updateHUD();champDetail(id);
+  toast(champDef(id).name.split(' ')[0]+' ascended to Lv '+h.lvl+' ⭐');
+  $$('#mbox .statline').forEach(el=>flashEl(el));
+  burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,'#ffd479',14,90);}
 function toggleSquad(id){const i=S.squad.indexOf(id);
-  if(i>=0)S.squad[i]=null;else{const e=S.squad.indexOf(null);if(e<0)return toast('Squad full');S.squad[e]=id;}
-  save();champDetail(id);}
+  if(i>=0){S.squad[i]=null;save();champDetail(id);toast('Removed from squad');}
+  else{const e=S.squad.indexOf(null);if(e<0)return toast('Squad full (3 max)');S.squad[e]=id;save();champDetail(id);toast('Deployed to squad ⚔');}
+  flashEl('#mbox .row .btn:last-child'); return;}
 
 /* ---- SUMMON ---- */
 function rollRarity(){S.pity++;if(S.pity>=50){S.pity=0;return'legend';}const r=Math.random()*100;
@@ -2004,7 +2023,7 @@ function fmtT(s){s=Math.floor(s);const h=s/3600|0,m=s%3600/60|0;return(h?h+'h ':
 // ES module, these are module-scoped and otherwise invisible to inline onclick=.
 Object.assign(window, {
   closeModal, cancelFishing, champDetail, claimReward, craft, doSummon, equip, unequip,
-  hardReset, levelHero, panelCodex, panelQuests, panelSummon, sellMats, toggleAudio, toggleSquad, save,
+  hardReset, levelHero, panelCodex, panelChamps, panelQuests, panelSummon, sellMats, toggleAudio, toggleSquad, save,
   finishBattle,
 });
 

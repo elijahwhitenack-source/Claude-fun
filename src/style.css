@@ -83,8 +83,11 @@
   .center{text-align:center;}
 
   .btn{border:none;cursor:pointer;border-radius:10px;padding:10px 12px;font-weight:700;font-size:13px;color:#07101f;
-    background:linear-gradient(180deg,var(--teal),#2bbfa3);letter-spacing:.4px;transition:transform .08s,filter .15s;width:100%;}
-  .btn:active{transform:scale(.97);}
+    background:linear-gradient(180deg,var(--teal),#2bbfa3);letter-spacing:.4px;transition:transform .06s,filter .12s,box-shadow .12s;width:100%;}
+  .btn:active{transform:scale(.94);filter:brightness(1.14);box-shadow:0 0 0 3px rgba(70,232,200,.22);}
+  .btn.gold:active{box-shadow:0 0 0 3px rgba(255,206,84,.28);}
+  .btn.violet:active{box-shadow:0 0 0 3px rgba(179,136,255,.3);}
+  .btn:disabled:active{transform:none;filter:grayscale(.7) brightness(.65);box-shadow:none;}
   .btn:disabled{filter:grayscale(.7) brightness(.65);cursor:not-allowed;}
   .btn.gold{background:linear-gradient(180deg,var(--gold),#e0a93f);}
   .btn.violet{background:linear-gradient(180deg,var(--violet),#7c4dff);color:#fff;}
@@ -96,6 +99,18 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.03);transition:border-color .16s ease, box-shadow .16s ease, transform .1s ease;}
   .card:hover{border-color:rgba(70,232,200,.28);box-shadow:inset 0 0 0 1px rgba(70,232,200,.1),0 0 18px rgba(70,232,200,.06);}
   .card.glow-legend{border-color:rgba(255,206,84,.45);box-shadow:inset 0 0 0 1px rgba(255,206,84,.18),0 0 22px rgba(255,206,84,.14);}
+  /* tap/press feedback + action-confirm pulse */
+  .recipe{transition:filter .1s,transform .06s;}
+  .recipe:active{filter:brightness(1.06);}
+  .gearslot button{transition:transform .06s,filter .12s;}
+  .qtab:active{filter:brightness(1.12);transform:scale(.97);}
+  .hero:active{filter:brightness(1.12);}
+  @keyframes flashpulse{0%{box-shadow:0 0 0 0 rgba(70,232,200,.55)}100%{box-shadow:0 0 0 13px rgba(70,232,200,0)}}
+  .flash{animation:flashpulse .6s ease-out;}
+  @keyframes flashpulseG{0%{box-shadow:0 0 0 0 rgba(255,206,84,.6)}100%{box-shadow:0 0 0 13px rgba(255,206,84,0)}}
+  .flash-gold{animation:flashpulseG .6s ease-out;}
+  @keyframes mrefresh{0%{opacity:.55;transform:scale(.992)}100%{opacity:1;transform:none}}
+  .mbox.refresh{animation:mrefresh .22s ease-out;}
   /* quest journal */
   .qtabs{display:flex;gap:6px;margin:-4px 0 12px;}
   .qtab{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:9px;padding:6px;font-size:12px;font-weight:700;cursor:pointer;}
