@@ -1,0 +1,16 @@
+{
+  "name": "ASTRARI — Echoes of the Verdant Stars",
+  "short_name": "ASTRARI",
+  "description": "A mobile open-world fantasy RPG set among the drifting isles of a shattered World-Tree.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#04060c",
+  "theme_color": "#04060c",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
