@@ -48,10 +48,10 @@ Build: `npm run dev` (localhost:5173) · `npm run build` → self-contained `dis
 - **Deploy uses the official GitHub Pages actions** (Pages source = "GitHub Actions") instead of `peaceiris/actions-gh-pages` (gh-pages branch). Cleaner, no extra branch.
 
 ### Known issues
-- None blocking. Game runs identically; build + PWA verified locally.
+- None. Game runs identically; build + PWA verified locally **and live**. The live Pages HTML is byte-for-byte identical to the locally verified `dist/index.html` (sha256 008f24fe…). manifest.json / sw.js / icon-512.png all serve 200.
 
 ### Next session notes / action items
-- **ONE-TIME MANUAL STEP (user):** In the GitHub repo → Settings → Pages → set **Source = "GitHub Actions"** (currently serves from the `main` branch root). Until then the Action will build but Pages may keep serving the old root files.
+- ✅ DONE: GitHub Pages **Source = "GitHub Actions"** is set; auto-deploy on push to `main` is live at https://elijahwhitenack-source.github.io/Claude-fun/ . (Note: switching the source needs a fresh Actions run to become active — a push/empty-commit re-triggers it.)
 - localStorage key is still `astrari2`; saves persist across the restructure on the same origin. (Local dev on a new port = fresh save — expected.)
 - Session 2 (rendering optimization) is the natural place to begin carving `render/*` modules out of `game.js`, introducing the shared `clock`/`world`/`fx` state objects that make the rest of the decomposition safe.
 - `scripts/make-icons.mjs` needs `sharp` (`npm i --no-save sharp`) only if icons are regenerated; not required for normal build.
