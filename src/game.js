@@ -7,6 +7,7 @@ import { mulberry32 } from './rng.js';
 import { drawGlow } from './glow.js';
 import { updateParticles, drawParticles, burstSpray, burstRing, burstMotes } from './particles.js';
 import { QUESTS, QS, FLAGS, CHAIN_LABEL } from './quests.js';
+import { DLG, VISIONS, NPC_INFO, CAELUN_SPEC, LORE_INTRO } from './story.js';
 import { TILE, ELEM, RAR, POOL, champDef, GEAR, RECIPES, SKILLS, RESINFO, WEATHERS } from './constants.js';
 
 /* ===================================================================
@@ -19,7 +20,7 @@ const DEF={
   px:39, py:43, combatLvl:1, combatXp:0, mapVer:0, bestiary:{mobs:{},gear:{},biomes:{},bosses:{}},
   clock:0.28, day:1, weatherIdx:0, weatherT:0,
   quests:{summon:0,fight:0,gather:0,claimed:{}},
-  qs:{}, flags:{}, activeSkill:'mining',
+  qs:{}, flags:{}, lore:[], activeSkill:'mining',
   firstRun:true, lastSeen:Date.now(), audio:true,
 };
 let S=load();
@@ -27,7 +28,7 @@ function load(){
   try{const d=JSON.parse(localStorage.getItem('astrari2'));
     if(d){const m=structuredClone(DEF);Object.assign(m,d);m.res={...DEF.res,...d.res};m.equip={...DEF.equip,...d.equip};
       m.bestiary={mobs:{},gear:{},biomes:{},bosses:{},...(d.bestiary||{})};
-      m.qs=d.qs||{}; m.flags=d.flags||{};
+      m.qs=d.qs||{}; m.flags=d.flags||{}; m.lore=d.lore||[];
       // migrate squad to 3 strong slots (keep first filled champions)
       const picks=(d.squad||[]).filter(Boolean).slice(0,3); m.squad=[picks[0]||null,picks[1]||null,picks[2]||null];
       return m;}}catch(e){}
@@ -829,6 +830,10 @@ function render(){
       else { ctx.fillStyle='rgba(255,90,122,.9)';ctx.font='8px sans-serif';ctx.textAlign='center';
         ctx.fillText('Lv'+m.lvl, cx2, m.y*TILE-cam.y+2); } }}); });
   draws.push({y:player.py, fn:()=>drawAvatar(ctx,player.px*TILE-cam.x+TILE/2,player.py*TILE-cam.y+TILE-2,1.05,wardenSpec(),player.face,player.moving?player.bob:0)});
+  if(caelun&&caelun.active&&vis(caelun.x,caelun.y))draws.push({y:caelun.y, fn:()=>{ const cx=caelun.x*TILE-cam.x+TILE/2, cy=caelun.y*TILE-cam.y+TILE-2;
+    for(let k=0;k<5;k++){ const a=now*0.001+k; drawGlow(ctx,cx+Math.cos(a)*8,cy-18+Math.sin(a*1.3)*10,'#7a3bd4',2.5,0.5); }
+    drawAvatar(ctx,cx,cy,1.05,CAELUN_SPEC,caelun.face,Math.sin(now*0.004)*1.2);
+    ctx.fillStyle='rgba(179,136,255,.95)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.fillText('✦ Caelun', cx, caelun.y*TILE-cam.y-8); }});
   draws.sort((a,b)=>a.y-b.y).forEach(d=>d.fn());
 
   // destination marker
@@ -895,6 +900,7 @@ function loop(){
   if(interior){ if(!fadeBusy()||fade.dir===-1)stepInterior(dt); }
   else if(!player.busy){ stepPlayer(dt); updateEntities(dt); }
   updateParticles(dt);
+  if(dlg&&dlg.typing)dlgTick(dt);
   if(shakeMag>0)shakeMag=Math.max(0,shakeMag-dt*42);
   updateWeather(dt);
   const _r0=performance.now(); render(); const _rt=performance.now()-_r0;
@@ -917,6 +923,7 @@ cv.addEventListener('pointerdown',e=>{
   if(player.busy)return;
   const wx=Math.floor((sx+cam.x)/TILE), wy=Math.floor((sy+cam.y)/TILE);
   if(wx<0||wy<0||wx>=MW||wy>=MH)return;
+  if(caelun&&caelun.active&&wx===caelun.x&&wy===caelun.y){ moveTo(wx,wy,{kind:'caelun'}); return; }
   const m=monAt(wx,wy);
   if(m){ moveTo(wx,wy,{kind:'monster',obj:m}); return; }
   const n=nodeAt(wx,wy);
@@ -928,6 +935,9 @@ cv.addEventListener('pointerdown',e=>{
   if(walk[wy][wx]){ moveTo(wx,wy,null); }
   else{ const adj=nearestWalkAdj(wx,wy); if(adj)moveTo(adj[0],adj[1],null); }
 });
+// dialogue / vision overlays advance on tap (ignore taps on choice buttons)
+$('#dlg').addEventListener('pointerdown',e=>{ if(e.target.closest('#dlg-choices'))return; dlgAdvance(); });
+$('#vision').addEventListener('pointerdown',()=>visionAdvance());
 
 function tryInteract(){
   const it=pendingInteract; pendingInteract=null;
@@ -937,6 +947,7 @@ function tryInteract(){
   if(it.kind==='node'){ const n=it.obj; if(n.depleted)return;
     if(dist(px,py,n.x,n.y)<=1.5){ face(n.x,n.y); if(n.type==='fish'||n.type==='ice')startFishing(n); else gatherNode(n); } return; }
   if(it.kind==='npc'){ if(dist(px,py,Math.round(it.obj.bx),Math.round(it.obj.by))<=1.8){face(it.obj.bx,it.obj.by);talkNPC(it.obj);} return; }
+  if(it.kind==='caelun'){ if(caelun&&dist(px,py,caelun.x,caelun.y)<=1.8)caelunTalk(); return; }
   if(it.kind==='building'){ openBuilding(it.obj); return; }
 }
 function face(tx,ty){const dx=tx-player.px,dy=ty-player.py;
@@ -1443,7 +1454,8 @@ function panelMenu(){
       • Weather & day/night shift over time and affect yields.</div></div>
     <div class="card"><div class="row">
       <button class="btn gold sm" style="flex:1" onclick="panelQuests()">📜 Quests</button>
-      <button class="btn violet sm" style="flex:1" onclick="panelCodex()">📖 Codex</button></div></div>
+      <button class="btn violet sm" style="flex:1" onclick="panelLore()">📖 Lore</button>
+      <button class="btn ghost sm" style="flex:1" onclick="panelCodex()">⚔ Bestiary</button></div></div>
     <div class="card"><button class="btn ghost sm" id="audbtn" style="width:100%;margin-bottom:8px" onclick="toggleAudio()">${S.audio?'🔊 Ambient: ON':'🔇 Ambient: OFF'}</button>
       <div class="row">
       <button class="btn sm" style="flex:1" onclick="save();toast('Saved!')">💾 Save</button>
@@ -1477,6 +1489,8 @@ function startQuest(q){ S.qs[q.id]={s:QS.ACTIVE,o:{}}; q.objectives.forEach(o=>S
 // ---- engine ----
 function checkUnlocks(){ if(!S.qs)S.qs={}; let changed=false;
   for(const q of QUESTS){ if(!S.qs[q.id]&&isUnlocked(q)){ startQuest(q); changed=true; toast('📜 New quest: '+q.title); } }
+  // Caelun manifests once the final Act-1 quest is active
+  if(S.qs['a1_voice']&&S.qs['a1_voice'].s===QS.ACTIVE&&!caelun)spawnCaelun();
   if(changed){ save(); updateQuestTracker(); }
   return changed; }
 function updateObjective(type,target,amount){ if(!S.qs)return; let any=false;
@@ -1486,11 +1500,10 @@ function updateObjective(type,target,amount){ if(!S.qs)return; let any=false;
       st.o[o.id]= type==='skill_level' ? Math.min(o.count,Math.max(cur,amount)) : Math.min(o.count,cur+amount);
       any=true; }
     if(st.s===QS.ACTIVE && q.objectives.every(o=>(st.o[o.id]||0)>=o.count)){ st.s=QS.COMPLETE; any=true;
-      toast('✅ Quest complete: '+q.title); } }
+      toast('✅ Quest complete: '+q.title);
+      if(q.auto)setTimeout(()=>{ if(S.qs[q.id]&&S.qs[q.id].s===QS.COMPLETE)grantQuestRewards(q); },60); } }
   if(any){ save(); updateQuestTracker(); } }
-function claimReward(id){ const q=QBYID[id], st=S.qs&&S.qs[id];
-  if(!q||!st||st.s!==QS.COMPLETE)return;
-  const r=q.rewards||{};
+function grantQuestRewards(q){ const r=q.rewards||{}, st=S.qs[q.id]; if(!st)return;
   if(r.astral)S.res.astral+=r.astral; if(r.shard)S.res.shard+=r.shard;
   ['ore','wood','herb','fish','dust','bio'].forEach(k=>{ if(r[k])S.res[k]=(S.res[k]||0)+r[k]; });
   (r.items||[]).forEach(it=>{ S.gear.push(it); S.bestiary.gear[it]=true; });
@@ -1499,6 +1512,10 @@ function claimReward(id){ const q=QBYID[id], st=S.qs&&S.qs[id];
   st.s=QS.CLAIMED;
   if(q.repeatable) startQuest(q); // bounties immediately re-offer
   save(); updateHUD(); checkUnlocks(); updateQuestTracker();
+}
+function claimReward(id){ const q=QBYID[id], st=S.qs&&S.qs[id];
+  if(!q||!st||st.s!==QS.COMPLETE)return;
+  grantQuestRewards(q);
   burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,'#ffd479',16,95);
   toast('Reward claimed ✦'); panelQuests();
 }
@@ -1563,19 +1580,129 @@ function hardReset(){modal(`<h2>Reset Everything?</h2><div class="muted">This wi
   <div class="row" style="margin-top:14px"><button class="btn ghost sm" style="flex:1" onclick="closeModal()">Cancel</button>
   <button class="btn sm" style="flex:1;background:linear-gradient(180deg,var(--bad),#c0394a);color:#fff" onclick="localStorage.removeItem('astrari2');location.reload()">Reset</button></div>`);}
 
+/* ===================================================================
+   DIALOGUE · VISION · CAELUN · LORE  (Act 1 story engine)
+   =================================================================== */
+const ROLE_SPEC={ forge:{skin:'#d8a878',cloak:'#8a4a2a'}, shrine:{skin:'#e8c8a8',cloak:'#5a3b8a'},
+  market:{skin:'#caa070',cloak:'#2a6a5a'}, lore:{skin:'#e0b890',cloak:'#3a5a8a'}, codex:{skin:'#cdb0e0',cloak:'#3a4a7a'} };
+function portraitSpec(port){
+  if(port==='player')return wardenSpec();
+  if(port==='caelun')return CAELUN_SPEC;
+  const r=ROLE_SPEC[port]; if(r)return {kind:'npc',skin:r.skin,cloak:r.cloak,hair:(NPC_INFO[port]&&NPC_INFO[port].hair)||'#2a2030',weapon:false};
+  return null;
+}
+// ---- dialogue engine ----
+let dlg=null; // {lines,i,full,shown,typing,onDone}
+function runDialogue(id,onDone){ const lines=Array.isArray(id)?id:DLG[id]; if(!lines){onDone&&onDone();return;}
+  player.busy=true; dlg={lines,i:-1,full:'',shown:0,typing:false,onDone:onDone||null};
+  $('#dlg').classList.add('show'); dlgNext(); }
+function dlgNext(){ const st=dlg; if(!st)return; st.i++;
+  if(st.i>=st.lines.length){ dlgEnd(); return; }
+  const ln=st.lines[st.i];
+  const narr=ln.sp==='NARRATOR';
+  const nameEl=$('#dlg-name'), textEl=$('#dlg-text'), portWrap=$('#dlg-port'), choicesEl=$('#dlg-choices'), adv=$('#dlg-adv');
+  choicesEl.innerHTML='';
+  nameEl.className=narr?'narrator':(ln.port==='caelun'?'caelun':'');
+  nameEl.textContent=narr?'':ln.sp;
+  textEl.className=narr?'narr':'';
+  // portrait
+  const spec=ln.port?portraitSpec(ln.port):null;
+  if(spec){ portWrap.classList.remove('hide'); const c=$('#dlg-pc'),g=c.getContext('2d'); g.clearRect(0,0,132,132);
+    const sg=g.createRadialGradient(66,60,4,66,70,64); sg.addColorStop(0,'rgba(40,55,90,.5)');sg.addColorStop(1,'rgba(40,55,90,0)');
+    g.fillStyle=sg;g.fillRect(0,0,132,132);
+    if(ln.port==='caelun'){ for(let k=0;k<7;k++){drawGlow(g,30+Math.random()*72,30+Math.random()*80,'#7a3bd4',3+Math.random()*3,0.5);} }
+    drawAvatar(g,66,116,2.9,spec,'down',0); }
+  else portWrap.classList.add('hide');
+  // typewriter
+  st.full=ln.text; st.shown=0; st.typing=true; textEl.textContent=''; adv.classList.add('hide');
+  st._choices=ln.choices||null;
+}
+function dlgTick(dt){ const st=dlg; if(!st||!st.typing)return;
+  st.shown=Math.min(st.full.length, st.shown + dt*60);
+  $('#dlg-text').textContent=st.full.slice(0,Math.floor(st.shown));
+  if(st.shown>=st.full.length){ st.typing=false; dlgReveal(); } }
+function dlgReveal(){ const st=dlg; if(!st)return; st.typing=false; $('#dlg-text').textContent=st.full;
+  if(st._choices){ const ce=$('#dlg-choices'); ce.innerHTML=st._choices.map((c,i)=>`<button class="btn ghost sm" onclick="dlgChoose(${i})">${c.text}</button>`).join(''); $('#dlg-adv').classList.add('hide'); }
+  else $('#dlg-adv').classList.remove('hide'); }
+function dlgAdvance(){ const st=dlg; if(!st)return;
+  if(st.typing){ st.shown=st.full.length; dlgTick(0); dlgReveal(); return; }
+  if(st._choices)return; // must choose
+  dlgNext(); }
+function dlgChoose(i){ const st=dlg; if(!st||!st._choices)return; const c=st._choices[i];
+  if(c.set)setFlag(c.set); if(c.vision){ const v=c.vision; dlgEnd(()=>showVision(v)); return; }
+  st._choices=null; dlgNext(); }
+function dlgEnd(after){ const cb=dlg&&dlg.onDone; dlg=null; $('#dlg').classList.remove('show'); player.busy=false;
+  if(after)after(); else if(cb)cb(); }
+// ---- vision ----
+let vision=null;
+function showVision(id,onDone){ const v=VISIONS[id]; if(!v){onDone&&onDone();return;}
+  player.busy=true; vision={id,onDone:onDone||null};
+  logLore('vision',id);
+  $('#vision-cap').textContent=v.caption;
+  const c=$('#vision-cv'),g=c.getContext('2d'); g.clearRect(0,0,260,220);
+  drawYvalethi(g,130,150,1);
+  $('#vision').classList.add('show'); }
+function visionAdvance(){ const cb=vision&&vision.onDone; vision=null; $('#vision').classList.remove('show'); player.busy=false; if(cb)cb(); }
+function drawYvalethi(g,cx,cy,s){ // tall luminous figure
+  const grd=g.createLinearGradient(cx,cy-140*s,cx,cy+20*s);
+  grd.addColorStop(0,'rgba(150,255,210,0)');grd.addColorStop(.4,'rgba(120,245,190,.55)');grd.addColorStop(.75,'rgba(90,210,255,.8)');grd.addColorStop(1,'rgba(70,232,200,.2)');
+  g.save();
+  drawGlow(g,cx,cy-70*s,'#5ad0ff',60*s,0.5);
+  g.fillStyle=grd; g.beginPath();
+  g.moveTo(cx-10*s,cy); g.quadraticCurveTo(cx-22*s,cy-90*s,cx,cy-150*s); g.quadraticCurveTo(cx+22*s,cy-90*s,cx+10*s,cy); g.closePath(); g.fill();
+  // head
+  drawGlow(g,cx,cy-128*s,'#bfffe6',16*s,0.8);
+  g.fillStyle='rgba(235,255,245,.9)'; g.beginPath(); g.arc(cx,cy-128*s,10*s,0,7); g.fill();
+  // drifting motes
+  for(let k=0;k<10;k++){ const a=k/10*7+now*0.0008; const rr=(40+k*4)*s;
+    g.fillStyle='rgba(160,255,220,'+(0.2+0.2*Math.sin(now*0.003+k))+')';
+    g.beginPath();g.arc(cx+Math.cos(a)*rr,cy-70*s+Math.sin(a*1.3)*40*s,1.6*s,0,7);g.fill(); }
+  g.restore();
+}
+// ---- lore journal ----
+function logLore(type,id){ if(!S.lore)S.lore=[]; if(!S.lore.some(e=>e.type===type&&e.id===id))S.lore.push({type,id,t:S.day}); save(); }
+function panelLore(){
+  const seen=S.lore||[];
+  const visions=seen.filter(e=>e.type==='vision').map(e=>{const v=VISIONS[e.id];return `<div class="card glow-legend"><div style="font-weight:700;color:var(--teal)">✦ ${v.title}</div><div class="muted" style="font-style:italic;margin-top:4px;line-height:1.6">${v.caption}</div></div>`;}).join('');
+  const meets=seen.filter(e=>e.type==='caelun').length?`<div class="card"><div style="font-weight:700;color:var(--violet)">☄ Caelun Drey</div><div class="muted" style="margin-top:4px">The scholar who unmade the Tree, certain it was mercy. He waits at the Edge.</div></div>`:'';
+  modal(`<h2>📖 Hall of Echoes</h2><div class="muted" style="margin:-6px 0 10px">${LORE_INTRO.text}</div>
+    ${visions||'<div class="muted">No visions yet. Attune to your Root Shard.</div>'}${meets}`);
+}
+// ---- Caelun special encounter ----
+let caelun=null;
+function spawnCaelun(){ if(caelun)return; const s=nearestWalkAdj(39,51)||[39,51]; caelun={x:s[0],y:s[1],active:true,face:'up'}; }
+function caelunTalk(){ if(!caelun)return; face(caelun.x,caelun.y);
+  runDialogue('caelun_first',()=>{ logLore('caelun','caelun_first'); caelun=null; updateObjective('caelun','*',1); toast('✦ Act I complete — the Hall of Echoes opens'); }); }
 /* ---- NPC + BUILDINGS ---- */
+function concludeQuest(q,n){ // play done dialogue + vision, then grant
+  runDialogue(q.doneDlg||[],()=>{ if(q.vision)showVision(q.vision,()=>turnInQuest(q,n)); else turnInQuest(q,n); });
+}
 function talkNPC(n){
-  if(n.role)updateObjective('talk', n.role, 1);
-  const lines={
-    forge:'"Bring me ore and astralwood, Warden, and I\'ll teach the forge to sing. Stand close and craft."',
-    shrine:'"The Tree remembers. Offer fish and bloom at the Shrine and I shall bind you a relic."',
-    market:'"Trade you shimmer for shards? Roam, gather, and the isle provides."',
-    lore:'"In my day the Verdant Stars lit every isle. The Hollow took them one by one. Reclaim the south, then the peaks."'
-  };
-  modal(`<h2>${n.name}</h2><div class="card"><div class="muted" style="font-style:italic;line-height:1.7">${lines[n.role]||'"Well met, Warden."'}</div></div>
-    ${n.role==='market'?`<button class="btn gold" onclick="sellMats()">Sell 10 Ore + 10 Wood → 8 ✦</button>`:''}
-    ${n.role==='forge'?`<button class="btn" onclick="closeModal();panelCraft()">Open Forge ⚒</button>`:''}
-    ${n.role==='shrine'?`<button class="btn violet" onclick="closeModal();panelCraft()">Open Shrine ✦</button>`:''}`);
+  const role=n.role;
+  const q=QUESTS.find(q=>q.npc===role && (qStatus(q.id)===QS.ACTIVE||qStatus(q.id)===QS.COMPLETE));
+  if(q){ const st=S.qs[q.id];
+    if(st.s===QS.COMPLETE && !q.auto){ if(role)updateObjective('talk',role,1); concludeQuest(q,n); return; }
+    if(st.s===QS.ACTIVE && !st.told && q.startDlg){ st.told=1; save();
+      runDialogue(q.startDlg,()=>{ if(role)updateObjective('talk',role,1);
+        const s2=S.qs[q.id];
+        if(s2.s===QS.COMPLETE && !q.auto && q.doneDlg) concludeQuest(q,n);  // single-talk quest finishes now
+        else npcServices(n); });
+      return; }
+  }
+  if(role)updateObjective('talk',role,1);
+  const arc='arc_'+role;
+  if(DLG[arc] && !(q&&q.startDlg)){ runDialogue(arc,()=>npcServices(n)); return; }
+  npcServices(n);
+}
+function turnInQuest(q,n){ if(S.qs[q.id]&&S.qs[q.id].s===QS.COMPLETE){ grantQuestRewards(q); burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,'#ffd479',16,95); toast('✦ '+q.title+' — complete'); }
+  npcServices(n); }
+function npcServices(n){ const role=n.role;
+  if(role==='market'||role==='forge'||role==='shrine'){
+    modal(`<h2>${n.name}</h2><div class="muted" style="margin:-6px 0 10px">${(NPC_INFO[role]&&NPC_INFO[role].title)||''}</div>
+      ${role==='market'?`<button class="btn gold" onclick="sellMats()">Sell 10 Ore + 10 Wood → 8 ✦</button>`:''}
+      ${role==='forge'?`<button class="btn" onclick="closeModal();panelCraft()">Open the Star-Forge ⚒</button>`:''}
+      ${role==='shrine'?`<button class="btn violet" onclick="closeModal();panelCraft()">Approach the Shrine ✦</button>`:''}`);
+  }
 }
 function sellMats(){if(S.res.ore<10||S.res.wood<10)return toast('Need 10 ore & 10 wood');
   S.res.ore-=10;S.res.wood-=10;S.res.shard+=8;save();updateHUD();toast('Sold for 8 ✦');panelBag&&closeModal();}
@@ -2024,7 +2151,7 @@ function fmtT(s){s=Math.floor(s);const h=s/3600|0,m=s%3600/60|0;return(h?h+'h ':
 Object.assign(window, {
   closeModal, cancelFishing, champDetail, claimReward, craft, doSummon, equip, unequip,
   hardReset, levelHero, panelCodex, panelChamps, panelQuests, panelSummon, sellMats, toggleAudio, toggleSquad, save,
-  finishBattle,
+  finishBattle, dlgChoose, panelLore,
 });
 
 if(!S.qs)S.qs={}; if(!S.flags)S.flags={};

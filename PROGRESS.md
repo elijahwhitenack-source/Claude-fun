@@ -4,7 +4,7 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Session 4)
+## Current architecture (after Session 5)
 
 ```
 astrari/
@@ -21,8 +21,9 @@ astrari/
     ├── rng.js              # mulberry32 seeded RNG
     ├── glow.js             # cached glow sprites (replaces ctx.shadowBlur)
     ├── particles.js        # pooled particle system (500), bursts
-    ├── quests.js           # QS enum, FLAGS, QUEST defs (pure data)
-    └── game.js             # world, render, combat, UI, quest engine — still the coupled core
+    ├── quests.js           # QS enum, FLAGS, QUEST defs incl. Act 1 + NPC arcs (pure data)
+    ├── story.js            # dialogue trees, visions, Caelun, NPC bios (pure data)
+    └── game.js             # world, render, combat, UI, quest + dialogue/vision/Caelun engine
 ```
 
 Build: `npm run dev` (localhost:5173) · `npm run build` → self-contained `dist/index.html` (~95 KB).
@@ -139,3 +140,27 @@ Crystal Hollows was >16.6 ms (sub-60fps) even on desktop before; now everything 
 ### Next session notes
 - Session 5 = **Act 1 story content** (dialogue system, vision system, Caelun encounter, the 5 Act-1 quests + NPC arc stubs). The quest engine, flags, and `talk`/`reach`/`kill` objective types are ready to carry it.
 - New inline-handler fn this session: `claimReward` (added to the `Object.assign(window,…)` block; replaced the old `claimQuest`).
+
+---
+
+## Session 5 — Story Content: Act 1 + Dialogue System — 2026-06-01
+
+### Completed
+- **5A — dialogue system** (`story.js` DLG trees + engine in `game.js`): full-screen `#dlg` overlay with a rendered NPC portrait (`portraitSpec` → `drawAvatar`), speaker name, **typewriter** text (skippable; advances in the loop via `dlgTick`), choice buttons (`flagSet`/`vision`/`next`), tap-to-advance. `talkNPC` now routes through it with a give → progress → turn-in flow tied to the quest engine.
+- **5B — vision system** (`showVision`): fade-to-white desaturated overlay, **Yvalethi rendered as a tall luminous figure** (`drawYvalethi`), italic caption, auto-logged to the lore journal.
+- **5C — Caelun encounter** (`spawnCaelun`/`caelunTalk`): a special world entity (NOT in `npcs[]`, so off the minimap) with drifting void-thread particles, his own dialogue with player **choices**, leaves after speaking, logged. Spawns when `a1_voice` is active.
+- **Lore Journal** (`panelLore`, Menu → Lore): lists discovered visions + the Caelun record. State in `S.lore`.
+- **5D — Act 1 quests** (replaced the demo main chain): First Light (Lune) → The Weight of the Thread (Vael, vision) → The Southern Margin (Sef) → Lune's Locked Archive (Lune) → The First Voice (Caelun). Each with give/turn-in dialogue; visions at 1.1/1.2; Caelun at 1.5. New objective types wired: `caelun`; quests can be NPC-given (`npc`/`startDlg`/`doneDlg`/`vision`) or field-`auto`-completed.
+- **5E — NPC arc stubs**: one quest each for Borin/Vael/Lune/Quill/Sef, gated on Act-1 completion (`quest_complete a1_voice`) so they don't collide with the main chain's NPC usage.
+
+### Verified
+- Dialogue overlay (Lune portrait + typewriter), vision (Yvalethi figure + caption), Caelun (portrait + 2 choices + leaves), lore journal (vision + Caelun logged), Act-1 tracker objectives, all 6 dock panels, no console errors. Build clean (~139 KB). Temporary story test hooks removed after use.
+
+### Deferred (documented)
+- The "Root Shard ritual minigame" (1.2) and physical world-placed shard pickups (1.4) are abstracted to attune-at-Shrine / gather-2 for now — no new interactable objects placed. Lore-tablet reading + flag-timeline viz still await Session 6.
+- Dialogue `condition` (per-line flag gating) field is in the schema but unused so far.
+
+### Next session notes
+- Session 6 = **world expansion + biome depth** (bigger map, biome mechanics, 64 lore tablets, new interactables, town expansion). Lore tablets will finally feed the `read` objective type + the Lore Journal's tablet section.
+- Inline-handler fns added this session: `panelLore`, `dlgChoose` (in the `Object.assign(window,…)` block).
+- NPC↔quest binding: `talkNPC` finds the first quest with `q.npc===role` that's ACTIVE/COMPLETE. Keep only one story quest per NPC active at a time (the chain + arc-stub gating already ensures this).
