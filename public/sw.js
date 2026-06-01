@@ -1,6 +1,6 @@
 /* ASTRARI service worker — offline caching with versioned cache.
    Bump CACHE when shipping a new build so old assets are purged. */
-const CACHE = 'astrari-v2';
+const CACHE = 'astrari-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
