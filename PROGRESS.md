@@ -4,7 +4,7 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Session 2)
+## Current architecture (after Session 3)
 
 ```
 astrari/
@@ -91,3 +91,28 @@ Crystal Hollows was >16.6 ms (sub-60fps) even on desktop before; now everything 
 ### Next session notes
 - Session 3 is UI/visual polish (panel transitions, combat UI, HUD). Good moment to also start carving `render/*` modules now that `glow`/`particles` set the pattern.
 - Dev hooks (`__bench`/`__tp`/`__time`/`__spawnFx`) ship in prod — harmless, keep for ongoing perf work; strip later if desired.
+
+---
+
+## Session 3 — Visual Polish + UI Overhaul — 2026-06-01
+
+### Completed
+- **3A — panel transitions:** modal slide-up + fade on enter, slide-down + fade on exit (pure CSS via `#modal`/`.mbox` — `closeModal` still just toggles `.show`). Card hover/active inner glow, `h2.gold` gradient header utility for legendary content.
+- **3C — combat UI:** full-width **boss health bar** at top of boss fights; **damage numbers** scale + crits go large/gold (`.float-dmg.crit`); **HP damage-chip** bars (ghost trail lags the fill); **status-effect badges** on unit portraits; low-HP bar color; **animated victory screen** with staggered loot reveal (rarity-colored gear, level-up callout, Continue + 4.2s auto-advance).
+- **3B — HUD:** resource counters animate (count-up tween + pop) via `setRes`; **active-skill XP bar** in the HUD (icon + progress + level, tracks `S.activeSkill` set in `gainXp`); warden-level **pulse** on level-up.
+- **3E — gather feedback:** circular **progress arc** with skill icon around the node (replaces the center text prompt); **`+N` float anchored to the node**; depletion **poof** + respawn **sparkle** via the particle system.
+- **3D — champion portraits:** per-element radial gradient behind each portrait (`champBg`), idle **bob** (CSS), **legend cards pulse**, prominent level badge, gold name + glow for legendaries in detail view.
+- **3G — bag:** equipped items **glow** in their gear color; **compare mode** shows stat diff vs equipped (`gearDiff` → green ▲ / red ▼) on every unequipped item.
+
+### Deferred (documented, not done)
+- **3F — map blending** (per-tile biome boundary gradients): skipped. The Session-2 cached tile buffer makes per-tile gradient blends costly to recompute, and water/lava already animate — low ROI. Revisit if the map gets a bigger art pass.
+- **3B stretch** — minimap fog-of-war, compass rose, region labels: skipped (needs persistent per-tile visited tracking; bigger than the rest of 3B).
+
+### Known issues
+- None. All 6 dock panels verified open→interact→close with no console errors. Boss bar, victory screen, champion portraits, bag compare verified via screenshots. Build clean (~111 KB single file).
+- Combat is hard to screenshot mid-fight (fast async + headless tab pauses rAF); verified via frozen-state hooks + DOM assertions instead.
+
+### Next session notes
+- Session 4 is the **quest engine** (state machine, objective hooks, story flags, journal UI) — pure systems, no story content yet. Migrate the existing 4 bounty quests onto it.
+- Gameplay test hooks (`__fight`/`__victory`/`__gather`/`__arc`/`__giveGear`) were removed after use; perf/visual hooks (`__perf`/`__bench`/`__tp`/`__time`/`__spawnFx`) remain.
+- Reminder: the modules use inline `on*` handlers → any new panel function called from inline HTML must be added to the `Object.assign(window, {...})` block near the boot section.
