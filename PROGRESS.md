@@ -4,7 +4,7 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Session 3)
+## Current architecture (after Session 4)
 
 ```
 astrari/
@@ -21,7 +21,8 @@ astrari/
     ├── rng.js              # mulberry32 seeded RNG
     ├── glow.js             # cached glow sprites (replaces ctx.shadowBlur)
     ├── particles.js        # pooled particle system (500), bursts
-    └── game.js             # world, render, combat, UI, systems — still the coupled core
+    ├── quests.js           # QS enum, FLAGS, QUEST defs (pure data)
+    └── game.js             # world, render, combat, UI, quest engine — still the coupled core
 ```
 
 Build: `npm run dev` (localhost:5173) · `npm run build` → self-contained `dist/index.html` (~95 KB).
@@ -116,3 +117,25 @@ Crystal Hollows was >16.6 ms (sub-60fps) even on desktop before; now everything 
 - Session 4 is the **quest engine** (state machine, objective hooks, story flags, journal UI) — pure systems, no story content yet. Migrate the existing 4 bounty quests onto it.
 - Gameplay test hooks (`__fight`/`__victory`/`__gather`/`__arc`/`__giveGear`) were removed after use; perf/visual hooks (`__perf`/`__bench`/`__tp`/`__time`/`__spawnFx`) remain.
 - Reminder: the modules use inline `on*` handlers → any new panel function called from inline HTML must be added to the `Object.assign(window, {...})` block near the boot section.
+
+---
+
+## Session 4 — Quest System Architecture — 2026-06-01
+
+### Completed
+- **4A/4C — quest engine + flags** (`quests.js` data + engine in `game.js`):
+  - `QS` enum (LOCKED/AVAILABLE/ACTIVE/COMPLETE/CLAIMED). State in `S.qs[id]={s,o:{objId:cur}}`, flags in `S.flags`. Both migrated in `load()`.
+  - Engine: `qStatus`, `isUnlocked`/`condMet` (quest_complete, combat_level, skill_level, flag, biome_visited, boss_defeated), `checkUnlocks` (auto-activates newly-unlocked quests with a toast), `updateObjective(type,target,amount)` (target `'*'`=any; `skill_level` uses set-max not add; auto-completes when all objectives met), `claimReward` (grants astral/shard/mats/items/xp + sets flags + repeatable re-offer), flag helpers `setFlag/getFlag/hasFlag`.
+- **4B — objective hooks** wired into: gather (`gatherNode` + fishing), kill + boss_defeated (`endBattle`), summon (`doSummon`), craft (`craft`), skill_level (`gainXp` on level-up), talk (`talkNPC` by role), reach (first-visit biome in `stepPlayer` → `visitBiome`). `checkUnlocks()` runs on boot.
+- **4D — journal + tracker**: tabbed **Quest Journal** (Active / Completed), grouped by chain (Story/Biomes/People/Skills/Bounties) with per-objective progress bars, reward previews, Claim buttons; main-chain cards get the gold glow. Persistent **active-objective tracker** overlay (`#questtracker`, top-left, tap → journal).
+- **Content** (demo, not story): migrated the 4 bounties (Harvest/Blooded/Answer the Call/Hollow Bane, repeatable) + a 3-step **main chain** (First Light → A Wider World → Sharpen the Edge) with a real unlock chain + `WANDERER`/`FORGE_LEARNED` flags, two biome quests gated on the `WANDERER` flag, one NPC quest, one skill quest.
+
+### Verified
+- Full cycle end-to-end: summon ×5 advanced "Answer the Call" → COMPLETE → Claim granted reward + repeatable reset to 0/5. All 6 dock panels still open/close; tracker overlay + journal render; no console errors. Build clean (~119 KB).
+
+### Deferred (documented)
+- **Daily quests** (reset cadence), **Lore Journal tab**, and **flag-timeline visualization**: no content sources yet (lore tablets arrive Session 6). The schema supports `daily`/`repeatable`; wire the reset when daily content exists.
+
+### Next session notes
+- Session 5 = **Act 1 story content** (dialogue system, vision system, Caelun encounter, the 5 Act-1 quests + NPC arc stubs). The quest engine, flags, and `talk`/`reach`/`kill` objective types are ready to carry it.
+- New inline-handler fn this session: `claimReward` (added to the `Object.assign(window,…)` block; replaced the old `claimQuest`).

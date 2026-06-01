@@ -96,6 +96,27 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.03);transition:border-color .16s ease, box-shadow .16s ease, transform .1s ease;}
   .card:hover{border-color:rgba(70,232,200,.28);box-shadow:inset 0 0 0 1px rgba(70,232,200,.1),0 0 18px rgba(70,232,200,.06);}
   .card.glow-legend{border-color:rgba(255,206,84,.45);box-shadow:inset 0 0 0 1px rgba(255,206,84,.18),0 0 22px rgba(255,206,84,.14);}
+  /* quest journal */
+  .qtabs{display:flex;gap:6px;margin:-4px 0 12px;}
+  .qtab{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:9px;padding:6px;font-size:12px;font-weight:700;cursor:pointer;}
+  .qtab.on{background:linear-gradient(180deg,var(--teal),#2bbfa3);color:#07101f;border-color:transparent;}
+  .qgroup{margin-bottom:6px;}
+  .qgrouph{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin:8px 2px 6px;}
+  .qobj{margin:5px 0;}
+  .qobjt{font-size:11px;display:flex;justify-content:space-between;gap:6px;}
+  .qbar{height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:3px;}
+  .qfill{height:100%;background:linear-gradient(90deg,var(--teal),var(--good));transition:width .4s;}
+  /* active-objective tracker overlay */
+  #questtracker{margin-top:6px;display:none;pointer-events:auto;cursor:pointer;width:fit-content;max-width:62%;
+    background:rgba(12,18,34,.82);border:1px solid var(--line);border-radius:11px;padding:6px 10px;backdrop-filter:blur(4px);}
+  #questtracker.show{display:block;animation:fadeIn .3s;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .qt-h{font-size:9px;letter-spacing:1px;color:var(--teal);font-weight:800;margin-bottom:3px;text-transform:uppercase;}
+  .qt-row{font-size:10px;color:var(--txt);margin:3px 0;}
+  .qt-t{display:flex;justify-content:space-between;gap:8px;}
+  .qt-t span{color:var(--dim);}
+  .qt-bar{height:4px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:2px;}
+  .qt-fill{height:100%;background:linear-gradient(90deg,var(--violet),var(--rose));transition:width .4s;}
   .pill{display:inline-block;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:2px 9px;font-size:11px;margin:2px;}
   .chip{font-size:10px;color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 6px;}
   .statline{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line);}

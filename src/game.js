@@ -6,6 +6,7 @@ import { $, $$, clamp, lerp, fmt, dist, sleep, shade } from './utils.js';
 import { mulberry32 } from './rng.js';
 import { drawGlow } from './glow.js';
 import { updateParticles, drawParticles, burstSpray, burstRing, burstMotes } from './particles.js';
+import { QUESTS, QS, FLAGS, CHAIN_LABEL } from './quests.js';
 import { TILE, ELEM, RAR, POOL, champDef, GEAR, RECIPES, SKILLS, RESINFO, WEATHERS } from './constants.js';
 
 /* ===================================================================
@@ -18,6 +19,7 @@ const DEF={
   px:39, py:43, combatLvl:1, combatXp:0, mapVer:0, bestiary:{mobs:{},gear:{},biomes:{},bosses:{}},
   clock:0.28, day:1, weatherIdx:0, weatherT:0,
   quests:{summon:0,fight:0,gather:0,claimed:{}},
+  qs:{}, flags:{}, activeSkill:'mining',
   firstRun:true, lastSeen:Date.now(), audio:true,
 };
 let S=load();
@@ -25,6 +27,7 @@ function load(){
   try{const d=JSON.parse(localStorage.getItem('astrari2'));
     if(d){const m=structuredClone(DEF);Object.assign(m,d);m.res={...DEF.res,...d.res};m.equip={...DEF.equip,...d.equip};
       m.bestiary={mobs:{},gear:{},biomes:{},bosses:{},...(d.bestiary||{})};
+      m.qs=d.qs||{}; m.flags=d.flags||{};
       // migrate squad to 3 strong slots (keep first filled champions)
       const picks=(d.squad||[]).filter(Boolean).slice(0,3); m.squad=[picks[0]||null,picks[1]||null,picks[2]||null];
       return m;}}catch(e){}
@@ -742,11 +745,14 @@ function stepPlayer(dt){
   const sp=4.2*dt;
   if(d<=sp){ player.px=nx;player.py=ny;player.path.shift();
     player.tx=nx;player.ty=ny; S.px=nx;S.py=ny;
+    visitBiome(nx,ny);
     // mid-path monster contact?
     checkAmbush();
   } else { player.px+=dx/d*sp; player.py+=dy/d*sp; }
   player.bob=Math.abs(Math.sin(now*0.012))*2.5;
 }
+function visitBiome(x,y){ if(!inb(x,y))return; const b=biomeMap[y]&&biomeMap[y][x]; if(!b)return;
+  if(!S.bestiary.biomes[b]){ S.bestiary.biomes[b]=true; updateObjective('reach', b, 1); } }
 function checkAmbush(){
   const px=Math.round(player.px),py=Math.round(player.py);
   for(const m of monsters){ if(m.alive&&dist(px,py,m.x,m.y)<=1){ startEncounter(m); return; } }
@@ -945,6 +951,7 @@ function gainXp(skill,amt){
   const before=levelOf(s.xp); s.xp+=amt; const after=levelOf(s.xp);
   if(after>before){ toast(`${SKILLS.find(k=>k.id===skill).n} reached Level ${after}! 🎉`);
     burstRing(player.px*TILE+TILE/2, player.py*TILE+TILE-14, '#ffd479', 18, 110); }
+  updateObjective('skill_level', skill, after);
 }
 function skillBonus(skill){let b=0;for(const slot of['weapon','armor','relic']){const g=S.equip[slot]&&GEAR[S.equip[slot]];if(g&&g.sk&&g.sk[skill])b+=g.sk[skill];}return b;}
 function gatherCol(skid,crystal){ return crystal?'#c89bff':skid==='mining'?'#ffd479':skid==='woodcutting'?'#9bd66a':'#b388ff'; }
@@ -975,6 +982,7 @@ function gatherNode(n){
     if(crystal){ const sh=1+Math.floor(lvl/12); S.res.shard+=sh; if(Math.random()<0.3)S.res.dust+=1; }
     gainXp(sk.id,9+lvl*2+(crystal?6:0));
     S.quests.gather=(S.quests.gather||0)+1;
+    updateObjective('gather', sk.res, yld);
     gathering=null;
     // deplete with a poof, respawn with a sparkle
     n.depleted=1; burstMotes(n.x*TILE+TILE/2, n.y*TILE+TILE-8, '#aeb6c8', 6);
@@ -1097,6 +1105,7 @@ function endFishing(success){
     if(curWeather()==='aurora'){S.res.shard+=1;bonus+=' +1✦(aurora)';}
     gainXp('fishing',14+lvl*2);
     S.quests.gather=(S.quests.gather||0)+1;
+    updateObjective('gather','fish',yld);
     n.depleted=1; setTimeout(()=>{n.depleted=0;},6000);
     save();updateHUD();
     toast(`Caught ${yld} Fish 🐟${bonus}`); burstWorld(n.x,n.y,'#9be8ff');
@@ -1260,6 +1269,7 @@ function craft(id){
   if(!Object.entries(r.cost).every(([k,v])=>S.res[k]>=v))return toast('Not enough materials');
   for(const[k,v]of Object.entries(r.cost))S.res[k]-=v;
   S.gear.push(r.out); gainXp('smithing',25);
+  updateObjective('craft', r.out, 1);
   save();updateHUD();panelCraft();drawInvCanvases?.();
   toast('Forged '+GEAR[r.out].name+'! 🔨');
   // auto-equip if slot empty
@@ -1386,6 +1396,7 @@ function doSummon(n){
   if(S.res.shard<cost){toast('Not enough Starshards ✦');return;}
   S.res.shard-=cost;const got=[];
   for(let i=0;i<n;i++){const d=rollHero();const dupe=gainHero(d);got.push({d,dupe});S.quests.summon=(S.quests.summon||0)+1;}
+  updateObjective('summon','*',n);
   save();updateHUD();
   modal(`<h2 class="center" style="color:var(--gold)">✦ The Pool Answers ✦</h2>
     <div class="reveal">${got.map((g,i)=>{const R=RAR[g.d.rar];return `<div class="hero rar-${R.c}" style="animation-delay:${i*.05}s">
@@ -1419,40 +1430,115 @@ function panelMenu(){
       <button class="btn sm" style="flex:1" onclick="save();toast('Saved!')">💾 Save</button>
       <button class="btn ghost sm" style="flex:1" onclick="hardReset()">⟲ Reset World</button></div></div>`);
 }
-/* ---- QUESTS ---- */
-function questList(){
-  const q=S.quests, cleared=Object.keys((S.bestiary&&S.bestiary.bosses)||{}).filter(k=>S.bestiary.bosses[k].cleared).length;
-  return [
-    {id:'harvest',ic:'⛏',name:'First Harvest',desc:'Gather from the wilds',cur:Math.min(q.gather||0,15),goal:15,rew:{shard:30},rt:'30 ✦'},
-    {id:'blooded',ic:'⚔️',name:'Blooded',desc:'Win battles against the Hollow',cur:Math.min(q.fight||0,8),goal:8,rew:{shard:45},rt:'45 ✦'},
-    {id:'thecall',ic:'🌌',name:'Answer the Call',desc:'Summon lost champions',cur:Math.min(q.summon||0,5),goal:5,rew:{shard:50},rt:'50 ✦'},
-    {id:'banebreak',ic:'☠',name:'Hollow Bane',desc:'Defeat a biome boss',cur:Math.min(cleared,1),goal:1,rew:{shard:120},rt:'120 ✦'}
-  ];
+/* ===================================================================
+   QUEST ENGINE  (state machine — data lives in src/quests.js)
+   State: S.qs[id]={s:status, o:{objId:current}} · S.flags[id]
+   =================================================================== */
+const QBYID=Object.fromEntries(QUESTS.map(q=>[q.id,q]));
+// ---- flags ----
+function setFlag(id,v=true){ if(!S.flags)S.flags={}; S.flags[id]=v; }
+function getFlag(id){ return S.flags&&S.flags[id]!=null?S.flags[id]:false; }
+function hasFlag(id){ return !!(S.flags&&S.flags[id]); }
+// ---- conditions / status ----
+function bossClearedAny(name){ const b=S.bestiary&&S.bestiary.bosses||{};
+  if(name&&name!=='*')return !!(b['boss_'+name]&&b['boss_'+name].cleared);
+  return Object.values(b).some(e=>e.cleared); }
+function condMet(c){ switch(c.type){
+  case 'quest_complete': return qStatus(c.id)>=QS.COMPLETE;
+  case 'combat_level': return combatLevel()>=c.min;
+  case 'skill_level': return skillLvl(c.skill)>=c.min;
+  case 'flag': return hasFlag(c.id);
+  case 'biome_visited': return !!(S.bestiary.biomes&&S.bestiary.biomes[c.biome]);
+  case 'boss_defeated': return bossClearedAny(c.name);
+  default: return true; } }
+function isUnlocked(q){ return (q.unlock||[]).every(condMet); }
+function qStatus(id){ const st=S.qs&&S.qs[id]; if(st)return st.s; const q=QBYID[id];
+  if(!q)return QS.LOCKED; return isUnlocked(q)?QS.AVAILABLE:QS.LOCKED; }
+function startQuest(q){ S.qs[q.id]={s:QS.ACTIVE,o:{}}; q.objectives.forEach(o=>S.qs[q.id].o[o.id]=0); }
+// ---- engine ----
+function checkUnlocks(){ if(!S.qs)S.qs={}; let changed=false;
+  for(const q of QUESTS){ if(!S.qs[q.id]&&isUnlocked(q)){ startQuest(q); changed=true; toast('📜 New quest: '+q.title); } }
+  if(changed){ save(); updateQuestTracker(); }
+  return changed; }
+function updateObjective(type,target,amount){ if(!S.qs)return; let any=false;
+  for(const q of QUESTS){ const st=S.qs[q.id]; if(!st||st.s!==QS.ACTIVE)continue;
+    for(const o of q.objectives){ if(o.type!==type)continue; if(o.target!=='*'&&o.target!==target)continue;
+      const cur=st.o[o.id]||0; if(cur>=o.count)continue;
+      st.o[o.id]= type==='skill_level' ? Math.min(o.count,Math.max(cur,amount)) : Math.min(o.count,cur+amount);
+      any=true; }
+    if(st.s===QS.ACTIVE && q.objectives.every(o=>(st.o[o.id]||0)>=o.count)){ st.s=QS.COMPLETE; any=true;
+      toast('✅ Quest complete: '+q.title); } }
+  if(any){ save(); updateQuestTracker(); } }
+function claimReward(id){ const q=QBYID[id], st=S.qs&&S.qs[id];
+  if(!q||!st||st.s!==QS.COMPLETE)return;
+  const r=q.rewards||{};
+  if(r.astral)S.res.astral+=r.astral; if(r.shard)S.res.shard+=r.shard;
+  ['ore','wood','herb','fish','dust','bio'].forEach(k=>{ if(r[k])S.res[k]=(S.res[k]||0)+r[k]; });
+  (r.items||[]).forEach(it=>{ S.gear.push(it); S.bestiary.gear[it]=true; });
+  (r.flags||[]).forEach(f=>setFlag(f));
+  if(r.xp)gainXp(r.xp.skill,r.xp.amount);
+  st.s=QS.CLAIMED;
+  if(q.repeatable) startQuest(q); // bounties immediately re-offer
+  save(); updateHUD(); checkUnlocks(); updateQuestTracker();
+  burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,'#ffd479',16,95);
+  toast('Reward claimed ✦'); panelQuests();
 }
-function panelQuests(){
-  const qs=questList();
-  let rows=qs.map(t=>{ const done=t.cur>=t.goal, claimed=S.quests.claimed&&S.quests.claimed[t.id];
-    const pct=Math.round(t.cur/t.goal*100);
-    return `<div class="card" style="display:flex;align-items:center;gap:10px;${claimed?'opacity:.55':''}">
-      <div style="font-size:24px;width:34px;text-align:center">${t.ic}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700">${t.name} ${claimed?'<span style="color:var(--good)">✓</span>':''}</div>
-        <div class="muted" style="font-size:11px">${t.desc} — <b>${t.cur}/${t.goal}</b></div>
-        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin-top:5px;overflow:hidden"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--teal),var(--good))"></div></div>
-      </div>
-      <div style="text-align:right;min-width:64px">
-        <div style="font-size:11px;color:var(--gold);margin-bottom:4px">${t.rt}</div>
-        ${claimed?'<div class="muted" style="font-size:11px">Claimed</div>':done?`<button class="btn gold sm" style="padding:4px 8px;font-size:12px" onclick="claimQuest('${t.id}')">Claim</button>`:'<div class="muted" style="font-size:11px">…</div>'}
-      </div></div>`;}).join('');
-  modal(`<h2>📜 Quests</h2><div class="muted" style="margin:-6px 0 10px">Bounties from Skyhaven. Progress as you roam.</div>${rows}`);
+function rewardStr(r){ const p=[];
+  if(r.astral)p.push('◈'+r.astral); if(r.shard)p.push('✦'+r.shard);
+  ['ore','wood','herb','fish','dust','bio'].forEach(k=>{ if(r[k])p.push((RESINFO[k]||k)+r[k]); });
+  (r.items||[]).forEach(it=>p.push('⚔ '+GEAR[it].name));
+  if(r.xp)p.push('+'+r.xp.amount+' '+r.xp.skill+' xp');
+  return p.join('  '); }
+function activeObjectives(){ // flat list of {q,o,cur} for ACTIVE quests, incomplete first
+  const list=[]; if(!S.qs)return list;
+  for(const q of QUESTS){ const st=S.qs[q.id]; if(!st||st.s!==QS.ACTIVE)continue;
+    for(const o of q.objectives){ list.push({q,o,cur:st.o[o.id]||0}); } }
+  return list; }
+function updateQuestTracker(){ const el=$('#questtracker'); if(!el)return;
+  // any claimable quest? show a claim nudge first
+  const claimable=QUESTS.filter(q=>qStatus(q.id)===QS.COMPLETE).length;
+  const objs=activeObjectives().filter(x=>x.cur<x.o.count).slice(0,3);
+  if(!objs.length&&!claimable){ el.classList.remove('show'); el.innerHTML=''; return; }
+  el.classList.add('show');
+  let rows=objs.map(x=>{ const pct=Math.round(x.cur/x.o.count*100);
+    return `<div class="qt-row"><div class="qt-t">${x.o.label||x.o.type} <span>${x.cur}/${x.o.count}</span></div>
+      <div class="qt-bar"><div class="qt-fill" style="width:${pct}%"></div></div></div>`; }).join('');
+  if(claimable)rows+=`<div class="qt-row" style="color:var(--gold)">✦ ${claimable} reward${claimable>1?'s':''} ready — tap to claim</div>`;
+  el.innerHTML=`<div class="qt-h">📜 Quests</div>${rows}`;
 }
-function claimQuest(id){
-  const t=questList().find(x=>x.id===id); if(!t)return;
-  if(t.cur<t.goal)return; if(!S.quests.claimed)S.quests.claimed={};
-  if(S.quests.claimed[id])return;
-  S.quests.claimed[id]=1;
-  for(const k in t.rew)S.res[k]=(S.res[k]||0)+t.rew[k];
-  save();updateHUD();toast('Quest complete! +'+t.rt);panelQuests();
+
+/* ---- QUEST JOURNAL UI ---- */
+let questTab='active';
+function panelQuests(t){ if(t)questTab=t; const tab=questTab;
+  const tabs=['active','completed'].map(k=>`<button class="qtab ${tab===k?'on':''}" onclick="panelQuests('${k}')">${k==='active'?'Active':'Completed'}</button>`).join('');
+  let list;
+  if(tab==='active'){ list=QUESTS.filter(q=>{const s=qStatus(q.id);return s===QS.ACTIVE||s===QS.COMPLETE;}); }
+  else { list=QUESTS.filter(q=>qStatus(q.id)===QS.CLAIMED); }
+  // group by chain
+  const groups={}; list.forEach(q=>{(groups[q.chain]=groups[q.chain]||[]).push(q);});
+  const order=['main','biome','npc','skill','bounty'];
+  let body=order.filter(c=>groups[c]).map(c=>{
+    const rows=groups[c].map(q=>questRow(q)).join('');
+    return `<div class="qgroup"><div class="qgrouph">${CHAIN_LABEL[c]||c}</div>${rows}</div>`;
+  }).join('');
+  if(!body)body=`<div class="muted center" style="padding:20px 0">${tab==='active'?'No active quests right now — keep exploring to unlock more.':'No completed quests yet.'}</div>`;
+  modal(`<h2>📜 Quest Journal</h2><div class="qtabs">${tabs}</div>${body}`);
+}
+function questRow(q){
+  const st=S.qs[q.id]||{s:qStatus(q.id),o:{}};
+  const done=st.s===QS.COMPLETE, claimed=st.s===QS.CLAIMED;
+  const objs=q.objectives.map(o=>{ const cur=Math.min(o.count,st.o&&st.o[o.id]||0), pct=Math.round(cur/o.count*100), ok=cur>=o.count;
+    return `<div class="qobj"><div class="qobjt">${ok?'<span style="color:var(--good)">✓</span>':'○'} ${o.label||o.type} <span class="muted">${cur}/${o.count}</span></div>
+      <div class="qbar"><div class="qfill" style="width:${pct}%;${ok?'background:linear-gradient(90deg,var(--good),#39c47e)':''}"></div></div></div>`;}).join('');
+  return `<div class="card ${q.chain==='main'?'glow-legend':''}" style="${claimed?'opacity:.6':''}">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+      <b>${q.title}</b>${q.repeatable?'<span class="chip">repeatable</span>':''}</div>
+    <div class="muted" style="font-size:11px;margin:2px 0 7px">${q.desc}</div>
+    ${objs}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px">
+      <span style="font-size:11px;color:var(--gold)">${rewardStr(q.rewards||{})}</span>
+      ${done?`<button class="btn gold sm" style="padding:4px 10px" onclick="claimReward('${q.id}')">Claim</button>`:claimed?'<span class="muted" style="font-size:11px">✓ Claimed</span>':''}
+    </div></div>`;
 }
 function hardReset(){modal(`<h2>Reset Everything?</h2><div class="muted">This wipes all progress permanently.</div>
   <div class="row" style="margin-top:14px"><button class="btn ghost sm" style="flex:1" onclick="closeModal()">Cancel</button>
@@ -1460,6 +1546,7 @@ function hardReset(){modal(`<h2>Reset Everything?</h2><div class="muted">This wi
 
 /* ---- NPC + BUILDINGS ---- */
 function talkNPC(n){
+  if(n.role)updateObjective('talk', n.role, 1);
   const lines={
     forge:'"Bring me ore and astralwood, Warden, and I\'ll teach the forge to sing. Stand close and craft."',
     shrine:'"The Tree remembers. Offer fish and bloom at the Shrine and I shall bind you a relic."',
@@ -1795,6 +1882,8 @@ function endBattle(win,fled){
     for(const k in loot.mats){S.res[k]+=loot.mats[k];lootStr+=` +${loot.mats[k]}${RESINFO[k]||k}`;}
     const cxp=(12+lv*4)*(isBoss?4:1);const before=combatLevel();S.combatXp+=cxp;const after=combatLevel();
     S.quests.fight=(S.quests.fight||0)+1;
+    updateObjective('kill', m.kind||'shade', 1);
+    if(isBoss){ updateObjective('boss_defeated','*',1); updateObjective('boss_defeated',m.boss.name,1); }
     m.alive=false;
     if(isBoss){
       // guaranteed legendary boss drop — once
@@ -1914,11 +2003,15 @@ function fmtT(s){s=Math.floor(s);const h=s/3600|0,m=s%3600/60|0;return(h?h+'h ':
 // Expose functions used by inline HTML on* handlers. Since the game is now an
 // ES module, these are module-scoped and otherwise invisible to inline onclick=.
 Object.assign(window, {
-  closeModal, cancelFishing, champDetail, claimQuest, craft, doSummon, equip, unequip,
+  closeModal, cancelFishing, champDetail, claimReward, craft, doSummon, equip, unequip,
   hardReset, levelHero, panelCodex, panelQuests, panelSummon, sellMats, toggleAudio, toggleSquad, save,
   finishBattle,
 });
 
+if(!S.qs)S.qs={}; if(!S.flags)S.flags={};
+visitBiome(S.px,S.py);   // record starting biome
+checkUnlocks();          // offer starter quests
+updateQuestTracker();
 updateHUD();
 welcome();
 requestAnimationFrame(loop);
