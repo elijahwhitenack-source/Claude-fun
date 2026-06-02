@@ -187,12 +187,22 @@ const BOSSES=[
 ];
 function bossHp(lvl,boss){return Math.round((70+lvl*44)*(boss?6.5:1));}
 function bossAtk(lvl,boss){return Math.round((10+lvl*6)*(boss?1.7:1));}
+// per-biome Hollow variants (Session 7) + elite name pool
+const VARIANTS={ meadow:['Drifter','Mourner','Seeker'], plains:['Drifter','Wanderer','Seeker'],
+  forest:['Thornwraith','Echoform','Grovesinger'], mountain:['Stone-Walker','Shardmind','Peakwarden'],
+  tundra:['Coldwalker','Frostsinger','Glaciant'], ember:['Ember','Cinderfused','Ashen Remnant'],
+  crystal:['Echomirror','Void-touched','Crystallized'] };
+const ELITE_PREFIX=['Velk','Mourne','Sythe','Korrath','Ysra','Dolm','Nareth','Veld','Ashka','Threnn','Orix','Sevren'];
 function spawnMonsters(){
   const R=mulberry32((Date.now()&0xffff)^0x5151);
   monsters=[];
-  function addMon(x,y,lvl,el,b,boss){ monsters.push({x,y,bx:x,by:y,el,lvl,biome:b,boss:boss||null,
-    maxhp:bossHp(lvl,boss),hp:bossHp(lvl,boss),atk:bossAtk(lvl,boss),alive:true,t:R()*5,face:'down',cd:0,
-    kind:boss?'boss':(R()<.5?'maw':'shade')}); }
+  function addMon(x,y,lvl,el,b,boss,elite){
+    const vs=VARIANTS[b]||['Hollow Spawn'], vidx=(R()*vs.length)|0;
+    let hp=bossHp(lvl,boss), atk=bossAtk(lvl,boss); if(elite){ hp=Math.round(hp*1.4); atk=Math.round(atk*1.3); }
+    const m={x,y,bx:x,by:y,el,lvl,biome:b,boss:boss||null,maxhp:hp,hp,atk,alive:true,t:R()*5,face:'down',cd:0,
+      kind:boss?'boss':(R()<.5?'maw':'shade'), variant:vs[vidx], vidx};
+    if(elite){ m.elite=true; m.eliteName=ELITE_PREFIX[(R()*ELITE_PREFIX.length)|0]+' the '+vs[vidx]; }
+    monsters.push(m); }
   for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
     const b=biomeMap[y][x]; if(b==='town'||b==='lake')continue;
     const p=BIOME_MOBS[b]; if(!p||!walk[y][x])continue;
@@ -200,7 +210,7 @@ function spawnMonsters(){
     if(dist(x,y,39,36)<6)continue;
     if(R()<p.density){
       const lvl=p.lo+(R()*(p.hi-p.lo+1)|0), el=p.el[R()*p.el.length|0];
-      addMon(x,y,lvl,el,b);
+      addMon(x,y,lvl,el,b,null,R()<0.05); // ~5% elite
     }
   }
   // biome bosses at fixed lairs
@@ -300,17 +310,22 @@ function drawAvatar(g,cx,cy,s,spec,face,bob){
   g.beginPath();g.ellipse(0,0,7*s,3*s,0,0,7);g.fill();
   g.translate(0,-bob);
   if(spec.kind==='monster'){
-    // spiky blob body
-    const body=spec.cloak;
+    // spiky blob body — variant changes the silhouette
+    const body=spec.cloak, vidx=spec.vidx||0;
     g.translate(0,-9*s);
-    // tendrils
+    // tendrils (count/length varies by variant)
     g.fillStyle=shade(body,-30);
-    for(let i=-2;i<=2;i++){ g.beginPath();g.moveTo(i*4*s,6*s);g.lineTo(i*4*s-2*s,12*s);g.lineTo(i*4*s+2*s,12*s);g.closePath();g.fill(); }
+    const tend=vidx===0?2:vidx===1?3:1, tlen=vidx===2?15:12;
+    for(let i=-tend;i<=tend;i++){ g.beginPath();g.moveTo(i*4*s,6*s);g.lineTo(i*4*s-2*s,tlen*s);g.lineTo(i*4*s+2*s,tlen*s);g.closePath();g.fill(); }
     // core
     const grd=g.createRadialGradient(0,0,1,0,0,9*s);
     grd.addColorStop(0,shade(body,40));grd.addColorStop(1,body);
     g.fillStyle=grd;
     g.beginPath();g.arc(0,0,8.5*s,0,7);g.fill();
+    // variant 1 = crystalline shards atop; variant 2 = horned
+    if(vidx===1){ g.fillStyle=shade(body,55); for(let k=-1;k<=1;k++){g.beginPath();g.moveTo(k*4*s,-6*s);g.lineTo(k*4*s-1.5*s,-2*s);g.lineTo(k*4*s+1.5*s,-2*s);g.closePath();g.fill();} }
+    else if(vidx===2){ g.fillStyle=shade(body,-40); g.beginPath();g.moveTo(-7*s,-5*s);g.lineTo(-9*s,-11*s);g.lineTo(-5*s,-7*s);g.closePath();g.fill(); g.beginPath();g.moveTo(7*s,-5*s);g.lineTo(9*s,-11*s);g.lineTo(5*s,-7*s);g.closePath();g.fill(); }
+    if(spec.elite){ g.fillStyle='#ffd24a'; for(let k=-1;k<=1;k++){g.beginPath();g.moveTo(k*3.5*s-1.5*s,-8.5*s);g.lineTo(k*3.5*s,-12.5*s);g.lineTo(k*3.5*s+1.5*s,-8.5*s);g.closePath();g.fill();} } // crown
     // glow eyes
     const ec=spec.glow||'#ff5a7a';
     drawGlow(g,-3*s,-1*s,ec,3.4*s,0.9);drawGlow(g,3*s,-1*s,ec,3.4*s,0.9);
@@ -391,15 +406,15 @@ function wardenSpec(){
     weapon:!!wpn,weaponCol:wpn?wpn.col:'#9fb3c8',wt:wpn?wpn.wt:null,
     armorTier:arm?arm.tier:0,relicCol:rel?rel.col:null,el:'light'};
 }
-function monSpec(m){return{kind:'monster',cloak:ELEM[m.el].col,glow:m.el==='void'?'#c08bff':m.el==='ember'?'#ff8a4a':'#ff5a7a'};}
+function monSpec(m){return{kind:'monster',cloak:ELEM[m.el].col,glow:m.elite?'#ffd24a':(m.el==='void'?'#c08bff':m.el==='ember'?'#ff8a4a':'#ff5a7a'),vidx:(m.vidx||0),elite:!!m.elite};}
 
 /* ===================================================================
    TILE RENDERING
    =================================================================== */
 const TCOL={
-  [T_GRASS]:'#2f6b3f',[T_PATH]:'#6b6f7d',[T_WATER]:'#2767b0',[T_SAND]:'#c9b27a',
-  [T_FOREST]:'#1f5230',[T_MTN]:'#5f5852',[T_PLAIN]:'#3a7a4a',[T_DEEP]:'#163f73',
-  [T_SNOW]:'#c6d4e4',[T_ICE]:'#8fb8d4',[T_ASH]:'#39302d',[T_LAVA]:'#d8531f',[T_CRYST]:'#2a2450'};
+  [T_GRASS]:'#2a5d39',[T_PATH]:'#565b69',[T_WATER]:'#235d9c',[T_SAND]:'#b6a06c',
+  [T_FOREST]:'#19432a',[T_MTN]:'#534d48',[T_PLAIN]:'#316a42',[T_DEEP]:'#12345d',
+  [T_SNOW]:'#bccbde',[T_ICE]:'#84afce',[T_ASH]:'#302a27',[T_LAVA]:'#d8531f',[T_CRYST]:'#26214a'};
 function tileNoise(x,y){return ((x*73856093)^(y*19349663))&7;}
 function drawTile(x,y,px,py,g){
   g=g||ctx;
@@ -407,21 +422,30 @@ function drawTile(x,y,px,py,g){
   let col=TCOL[t];
   const n=tileNoise(x,y);
   g.fillStyle=col; g.fillRect(px,py,TILE+1,TILE+1);
-  // soft per-tile vertical shade for depth
   if(t===T_GRASS||t===T_FOREST||t===T_PLAIN){
-    g.fillStyle=shade(col,n>3?12:-10);
-    if(n%3===0){g.fillRect(px+6,py+8,2,5);g.fillRect(px+9,py+7,2,6);}
-    if(n%4===0){g.fillRect(px+18,py+16,2,5);g.fillRect(px+21,py+15,2,6);}
-    if(n%5===0){g.fillStyle='rgba(255,255,255,.05)';g.beginPath();g.arc(px+14,py+20,1.3,0,7);g.fill();}
+    // soft dappled light & shadow patches (organic, smooth) for depth
+    g.fillStyle=shade(col,-13);
+    if(n%2===0){g.beginPath();g.ellipse(px+9,py+18,6.5,4,0,0,7);g.fill();}
+    if(n%3===0){g.beginPath();g.ellipse(px+21,py+8,5,3.4,0,0,7);g.fill();}
+    g.fillStyle=shade(col,12);
+    if(n%2===1){g.beginPath();g.ellipse(px+12,py+9,5.5,3.2,0,0,7);g.fill();}
+    if(n%4===0){g.beginPath();g.ellipse(px+20,py+19,4.5,3,0,0,7);g.fill();}
+    // a few grass blades
+    g.fillStyle=shade(col,n>3?20:-2);
+    if(n%3===0){g.fillRect(px+6,py+8,1.5,5);g.fillRect(px+9,py+7,1.5,6);}
+    if(n%4===0){g.fillRect(px+18,py+15,1.5,5);g.fillRect(px+21,py+14,1.5,6);}
+    if(n%5===0){g.fillStyle='rgba(200,255,215,.06)';g.beginPath();g.arc(px+14,py+21,1.3,0,7);g.fill();}
   }else if(t===T_WATER||t===T_DEEP){
     const shimmer=Math.sin(now*0.002 + x*0.6 + y*0.4)*0.5+0.5;
     g.fillStyle=`rgba(255,255,255,${0.05+shimmer*0.06})`;
     g.fillRect(px+4,py+ (n*3)%(TILE-6) ,TILE-10,2);
   }else if(t===T_MTN){
-    g.fillStyle=shade(col,n>3?16:-16);
-    g.fillRect(px+3,py+4,8,7);g.fillRect(px+16,py+14,9,8);
+    g.fillStyle=shade(col,-16);g.beginPath();g.ellipse(px+8,py+10,6,4.5,0,0,7);g.fill();
+    g.beginPath();g.ellipse(px+21,py+19,6,4.5,0,0,7);g.fill();
+    g.fillStyle=shade(col,16);if(n%2){g.beginPath();g.ellipse(px+15,py+9,3.5,2.4,0,0,7);g.fill();}
   }else if(t===T_PATH){
-    g.fillStyle=shade(col,n>4?9:-9);g.fillRect(px+ (n*4)%20,py+(n*5)%20,4,4);
+    g.fillStyle=shade(col,-9);if(n%2){g.beginPath();g.ellipse(px+10,py+14,5,3.5,0,0,7);g.fill();}
+    g.fillStyle=shade(col,8);if(n%3===0){g.beginPath();g.ellipse(px+20,py+9,3,2,0,0,7);g.fill();}
   }else if(t===T_SAND){
     g.fillStyle=shade(col,-12);if(n%2)g.fillRect(px+10,py+12,3,3);
   }else if(t===T_SNOW){
@@ -867,11 +891,14 @@ function render(){
   buildings.forEach(b=>{ if(vis(b.x,b.y)||vis(b.x+b.w,b.y+b.h))draws.push({y:b.y+b.h-1, fn:()=>drawBuilding(b)}); });
   npcs.forEach(n=>{ if(vis(n.bx,n.by))draws.push({y:n.by, fn:()=>drawAvatar(ctx,n.bx*TILE-cam.x+TILE/2,n.by*TILE-cam.y+TILE-2,1,{kind:'npc',skin:n.skin,cloak:n.cloak,hair:'#2a2030',weapon:false},n.face,0)}); });
   monsters.forEach(m=>{ if(!m.alive||!vis(m.x,m.y))return;
-    draws.push({y:m.y, fn:()=>{ const sc=m.boss?1.7:1;
-      drawAvatar(ctx,m.x*TILE-cam.x+TILE/2,m.y*TILE-cam.y+TILE-2,sc,monSpec(m),m.face,Math.sin(now*0.006+m.x)*1.5);
-      const cx2=m.x*TILE-cam.x+TILE/2;
+    draws.push({y:m.y, fn:()=>{ const sc=m.boss?1.7:(m.elite?1.32:1);
+      const cx2=m.x*TILE-cam.x+TILE/2, cy2=m.y*TILE-cam.y+TILE-2;
+      if(m.elite)drawGlow(ctx,cx2,cy2-9,'#ffb43a',13+Math.sin(now*0.005+m.x)*3,0.5); // elite aura
+      drawAvatar(ctx,cx2,cy2,sc,monSpec(m),m.face,Math.sin(now*0.006+m.x)*1.5);
       if(m.boss){ ctx.fillStyle='rgba(255,210,90,.95)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';
         ctx.fillText('☠ '+m.boss.name.split(/[ ,]/)[0]+' Lv'+m.lvl, cx2, m.y*TILE-cam.y-8); }
+      else if(m.elite){ ctx.fillStyle='#ffd24a';ctx.font='bold 8.5px sans-serif';ctx.textAlign='center';
+        ctx.fillText('★ '+m.eliteName+' Lv'+m.lvl, cx2, m.y*TILE-cam.y-9); }
       else { ctx.fillStyle='rgba(255,90,122,.9)';ctx.font='8px sans-serif';ctx.textAlign='center';
         ctx.fillText('Lv'+m.lvl, cx2, m.y*TILE-cam.y+2); } }}); });
   draws.push({y:player.py, fn:()=>drawAvatar(ctx,player.px*TILE-cam.x+TILE/2,player.py*TILE-cam.y+TILE-2,1.05,wardenSpec(),player.face,player.moving?player.bob:0)});
@@ -1267,6 +1294,24 @@ function updateHUD(){
   const a=lvlReq(lvl), b=lvlReq(lvl+1), prog=lvl>=99?1:Math.max(0,Math.min(1,(xp-a)/(b-a)));
   $('#xp-ic').textContent=def.ic; $('#xpfill').style.width=(prog*100)+'%'; $('#xp-lvl').textContent=lvl;
 }
+
+/* ---- custom dock icons (crisp, on-theme; replaces emoji) ---- */
+function rrPath(g,x,y,w,h,r){ g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath(); }
+function star4(g,cx,cy,outer,inner){ g.beginPath(); for(let k=0;k<8;k++){const a=Math.PI/4*k-Math.PI/2,r=k%2?inner:outer;g.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);} g.closePath();g.fill(); }
+function drawDockIcon(g,kind){ const main='#b3bed4', acc='#46e8c8'; g.lineCap='round';g.lineJoin='round';
+  if(kind==='bag'){ g.fillStyle=main; rrPath(g,-7,-2,14,11,3.5); g.fill();
+    g.strokeStyle=main;g.lineWidth=1.8;g.beginPath();g.arc(0,-2,5,Math.PI,0);g.stroke();
+    g.strokeStyle=acc;g.lineWidth=1.5;g.beginPath();g.moveTo(-7,2.2);g.lineTo(7,2.2);g.stroke(); }
+  else if(kind==='craft'){ g.fillStyle=main;g.beginPath();g.moveTo(-8,-4);g.lineTo(8,-4);g.lineTo(8,-1);g.lineTo(3,-1);g.lineTo(4,2);g.lineTo(-3,2);g.lineTo(-2,-1);g.lineTo(-8,-1);g.closePath();g.fill();
+    g.fillRect(-2,2,4,5); g.fillStyle=acc;g.fillRect(-6,7,12,2); }
+  else if(kind==='skills'){ g.fillStyle=main;g.fillRect(-7.5,2,3.4,6);g.fillRect(-2,-2,3.4,10); g.fillStyle=acc;g.fillRect(3.5,-7,3.4,15); }
+  else if(kind==='champs'){ g.strokeStyle=main;g.lineWidth=2.2;g.beginPath();g.moveTo(-7,7);g.lineTo(6,-6);g.moveTo(7,7);g.lineTo(-6,-6);g.stroke();
+    g.strokeStyle=acc;g.lineWidth=2.2;g.beginPath();g.moveTo(-8.5,4.5);g.lineTo(-4.5,8.5);g.moveTo(8.5,4.5);g.lineTo(4.5,8.5);g.stroke(); }
+  else if(kind==='summon'){ g.fillStyle=acc;star4(g,0,0,9,3.2); g.fillStyle=main;star4(g,0,0,4.6,1.5); }
+  else if(kind==='menu'){ g.strokeStyle=main;g.lineWidth=2.2;g.beginPath();g.moveTo(-7,-5);g.lineTo(7,-5);g.moveTo(-7,0);g.lineTo(7,0);g.stroke();
+    g.strokeStyle=acc;g.lineWidth=2.2;g.beginPath();g.moveTo(-7,5);g.lineTo(7,5);g.stroke(); } }
+function paintDock(){ $$('#dock canvas[data-icon]').forEach(c=>{ const g=c.getContext('2d');g.clearRect(0,0,48,48);
+  g.save();g.translate(24,24);g.scale(2,2);drawDockIcon(g,c.dataset.icon);g.restore(); }); }
 
 /* ===================================================================
    DOCK PANELS
@@ -1987,7 +2032,7 @@ let inBattle=false;
 function startEncounter(m){
   if(inBattle||player.busy)return;
   inBattle=true;player.busy=true;player.path=[];player.moving=false;
-  addShake(m.boss?9:5); // impact jolt as the clash begins
+  addShake(m.boss?9:m.elite?7:5); // impact jolt as the clash begins
   const w=wardenStats();
   const isBoss=!!m.boss;
   const allies=[{name:'You (Warden)',spec:wardenSpec(),el:'light',atk:Math.round(w.atk*(1+w.teamAtk)),hp:w.hp,maxhp:w.hp,alive:true,warden:true,status:null}];
@@ -1999,15 +2044,17 @@ function startEncounter(m){
   const base=Math.max(m.lvl, combatLevel()-2+region);
   const foes=[];
   // ~5 foes (3 vs 5). Bosses bring a stronger, larger pack.
-  const cnt=isBoss?6:5;
+  const cnt=isBoss?6:(m.elite?5:5);
+  const leadName=isBoss?m.boss.name.split(/[ ,]/)[0]:(m.elite?m.eliteName:(m.biome&&VARIANTS[m.biome]?'Hollow '+(m.variant||'Spawn'):'Hollow Spawn'));
   for(let i=0;i<cnt;i++){const lead=i===0;const el=lead?m.el:Object.keys(ELEM)[(base+i)%5];
     const lv=Math.max(1,base-(lead?0:1+(i%3)));
+    const eliteMul=m.elite&&lead?1.4:1;
     const bossMul=isBoss&&lead?2.0:1;
-    const hp=Math.round((80+lv*50)*(lead?1.5:1)*bossMul);
-    foes.push({name:lead?(isBoss?m.boss.name.split(/[ ,]/)[0]:('Hollow '+(m.kind==='maw'?'Maw':'Shade'))):'Hollow Spawn',
-      spec:{kind:'monster',cloak:ELEM[el].col,glow:isBoss&&lead?'#ffd24a':'#ff5a7a'},el,
-      atk:Math.round((11+lv*6.5)*(lead?1.3:1)*(isBoss&&lead?1.5:1)),hp,maxhp:hp,alive:true,status:null,lead});}
-  battleData={allies,foes,mon:m,eff:base,isBoss};
+    const hp=Math.round((80+lv*50)*(lead?1.5:1)*bossMul*eliteMul);
+    foes.push({name:lead?leadName:'Hollow Spawn',
+      spec:{kind:'monster',cloak:ELEM[el].col,glow:(isBoss||m.elite)&&lead?'#ffd24a':'#ff5a7a',vidx:lead?(m.vidx||0):0,elite:m.elite&&lead},el,
+      atk:Math.round((11+lv*6.5)*(lead?1.3:1)*(isBoss&&lead?1.5:1)*eliteMul),hp,maxhp:hp,alive:true,status:null,lead});}
+  battleData={allies,foes,mon:m,eff:base,isBoss,elite:m.elite};
   showBattleModal();
 }
 let battleData=null;
@@ -2061,7 +2108,9 @@ function hpUI(side,i,u){const el=$('#bu-'+side+'-'+i);if(!el)return;
   el.classList.toggle('low',u.alive&&u.hp/u.maxhp<0.3);
   const b=el.querySelector('.stbadge'); if(b){ if(u.status){b.textContent=u.status.ic;b.style.color=u.status.col;} else b.textContent=''; }
   if(!u.alive){el.style.opacity=.3;el.style.filter='grayscale(1)';}
-  if(battleData&&battleData.bossU===u)updateBossBar();
+  if(battleData&&battleData.bossU===u){ updateBossBar();
+    if(!u._phase && u.alive && u.hp>0 && u.hp < u.maxhp*0.5){ u._phase=1; u.atk=Math.round(u.atk*1.4);
+      arenaFlash('#ff8a3a',true); blog('<b style="color:var(--gold)">⚠ '+u.name+' breaks its restraint — a furious second phase begins!</b>'); } }
 }
 function updateBossBar(){const bu=battleData&&battleData.bossU;if(!bu)return;
   const f=$('#bossfill'); if(f)f.style.width=Math.max(0,bu.hp/bu.maxhp*100)+'%';
@@ -2102,9 +2151,11 @@ async function resolveBattle(){
   endBattle(foes.every(u=>!u.alive),false);
 }
 function recordBestiary(m,defeated){
-  const key=m.boss?('boss_'+m.boss.name):(m.biome+'_'+(m.kind||'shade'));
+  const key=m.boss?('boss_'+m.boss.name):(m.biome+'_'+(m.variant||m.kind||'shade'));
   const bk=m.boss?S.bestiary.bosses:S.bestiary.mobs;
-  const e=bk[key]||(bk[key]={name:m.boss?m.boss.name:((m.biome||'wild')+' '+(m.kind==='maw'?'Maw':'Shade')),el:m.el,biome:m.biome,kills:0,maxLvl:0,boss:!!m.boss});
+  const name=m.boss?m.boss.name:((BIOME_LABEL[m.biome]||m.biome||'Wild')+' '+(m.variant||'Hollow'));
+  const e=bk[key]||(bk[key]={name,el:m.el,biome:m.biome,kills:0,maxLvl:0,boss:!!m.boss});
+  if(m.elite)e.elite=true;
   if(defeated){e.kills++;e.maxLvl=Math.max(e.maxLvl,m.lvl);if(m.boss)e.cleared=true;}
   S.bestiary.biomes[m.biome]=true;
 }
@@ -2117,11 +2168,13 @@ function endBattle(win,fled){
     const rew={astral:(20+lv*8)*(isBoss?5:1),shard:(lv%3===0?2:0)+(isBoss?12:0)};
     S.res.astral+=rew.astral;S.res.shard+=rew.shard;
     const loot=rollLoot({lvl:lv});
+    if(battleData.elite && !loot.gear){ const pool=Object.keys(GEAR).filter(k=>GEAR[k].tier<=Math.min(4,1+Math.floor(lv/12))&&!/^(w_tempest|w_infernal|a_glacial|r_thornheart|r_voidheart)$/.test(k)); if(pool.length)loot.gear=pool[(Math.random()*pool.length)|0]; } // elites guarantee gear
     let lootStr='';
     for(const k in loot.mats){S.res[k]+=loot.mats[k];lootStr+=` +${loot.mats[k]}${RESINFO[k]||k}`;}
     const cxp=(12+lv*4)*(isBoss?4:1);const before=combatLevel();S.combatXp+=cxp;const after=combatLevel();
     S.quests.fight=(S.quests.fight||0)+1;
-    updateObjective('kill', m.kind||'shade', 1);
+    updateObjective('kill', m.variant||m.kind||'shade', 1);
+    if(m.elite)updateObjective('elite','*',1);
     if(isBoss){ updateObjective('boss_defeated','*',1); updateObjective('boss_defeated',m.boss.name,1); }
     m.alive=false;
     if(isBoss){
@@ -2251,6 +2304,7 @@ if(!S.qs)S.qs={}; if(!S.flags)S.flags={};
 visitBiome(S.px,S.py);   // record starting biome
 checkUnlocks();          // offer starter quests
 updateQuestTracker();
+paintDock();
 updateHUD();
 welcome();
 requestAnimationFrame(loop);

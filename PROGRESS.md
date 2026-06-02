@@ -4,7 +4,7 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Session 6)
+## Current architecture (after Session 7 + polish)
 
 ```
 astrari/
@@ -189,3 +189,29 @@ Scope call: focused on **biome *depth*** (higher value, lower risk) over raw map
 - Session 7 = **enemy overhaul + elite system** (biome enemy variants, named elites on a timer, boss phases, world bosses, combat abilities).
 - The `read` objective type is now live — future "study the tablets" quests can use it.
 - Test hooks added then removed this session: `__find`, `__readNear`. Perf hooks (`__perf`/`__bench`/`__tp`/`__time`/`__spawnFx`) remain.
+
+---
+
+## UI/Terrain Polish + Session 7 — Enemy Overhaul — 2026-06-01
+
+User asked (via AskUserQuestion) for: moody/atmospheric look, focus on **terrain + dock**, **custom-drawn dock icons**, and **Session 7 then check in**.
+
+### Polish — Completed
+- **Custom dock icons**: replaced OS emoji with crisp canvas-drawn icons (`drawDockIcon`/`paintDock`) — satchel, anvil, bars, crossed swords, teal 4-point star, menu lines. Consistent across devices.
+- **Smoother dock chrome**: deeper translucent gradient + blur, teal hairline, press-scale on the icon, and an animated **underline indicator** on the active tab.
+- **Moodier terrain**: deepened the whole `TCOL` palette; replaced flat speck-detail on grass/forest/plain/mountain/path with **soft elliptical dappled light & shadow** patches — reads textured and atmospheric instead of flat/low-poly.
+
+### Session 7 — Completed (core)
+- **Biome enemy variants** (`VARIANTS`): each Hollow now spawns as a named biome species (Drifter/Mourner/Seeker, Thornwraith/Echoform/Grovesinger, Stone-Walker/Shardmind/Peakwarden, Coldwalker/Frostsinger/Glaciant, Ember/Cinderfused/Ashen Remnant, Echomirror/Void-touched/Crystallized). Variant changes the avatar silhouette (tendril count, crystalline shards, horns) and the bestiary entry/combat name.
+- **Named elites** (~5% spawn): `[prefix] the [variant]` (e.g. "Ashka the Glaciant"), 1.3–1.4× stats, gold **aura + crown + name** in the world, bigger encounter shake, **guaranteed gear drop** on kill, `elite` kill-objective hook.
+- **Boss phases**: at <50% HP a boss enters a **furious second phase** (atk ×1.4 + arena flash + combat-log callout), tracked per-fight.
+- Bestiary now keys/labels by biome+variant (e.g. "Frostpeak Tundra Glaciant").
+
+### Deferred (documented)
+- World bosses (Unnamed Tide / Warden's Regret / Caelun's Shadow), the full triggered **combat-ability system** (Ashen Dissolution, Soul Anchor, Warden's Insight, champion synergies), the 24-hour **timed** elite cycle (current elites are spawn-time rolled), and the deeper per-variant *behaviors* in `wander()`/combat. These are the larger half of Session 7.
+
+### Verified
+- Custom dock icons render; moody dappled terrain; elite "Ashka the Glaciant" with aura/crown/name; variant silhouettes; bonfires + tablets in-scene; all 6 panels; no console errors. Build clean (~154 KB).
+
+### Next (paused for user check-in, per their choice)
+- Session 8 = **Act 2 story content** (biome-boss quests, Skarn choice, Gelmara journal-combat, Nullith mirror fight, NPC arcs). Or revisit deferred Session-7 depth / the Session-6 map expansion.
