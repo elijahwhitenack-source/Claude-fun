@@ -65,6 +65,9 @@ export const GEAR={
   // boss legendaries (relics)
   r_thornheart:{id:'r_thornheart',name:'Thornheart Seed',slot:'relic',tier:4,col:'#5fd66a',atk:30,hp:200,sk:{foraging:3},teamAtk:0.24},
   r_voidheart:{id:'r_voidheart',name:'Voidheart Eclipse',slot:'relic',tier:4,col:'#a06cff',atk:48,hp:260,sk:{},teamAtk:0.34},
+  // ward relics — negate biome exposure (Session 6)
+  r_coldward:{id:'r_coldward',name:'Cold Ward Charm',slot:'relic',tier:2,col:'#bfe8ff',atk:6,hp:80,sk:{},teamAtk:0.04,ward:'cold'},
+  r_emberward:{id:'r_emberward',name:'Ember Ward Charm',slot:'relic',tier:2,col:'#ff8a4a',atk:10,hp:60,sk:{},teamAtk:0.04,ward:'heat'},
 };
 export const RECIPES=[
   {id:'w_astralite',out:'w_astralite',station:'forge',skill:'smithing',lvl:1,cost:{ore:6,wood:2}},
@@ -82,6 +85,8 @@ export const RECIPES=[
   {id:'a_crystal',out:'a_crystal',station:'forge',skill:'smithing',lvl:24,cost:{ore:30,shard:18,dust:10}},
   {id:'r_emberstone',out:'r_emberstone',station:'shrine',skill:'smithing',lvl:15,cost:{dust:16,ore:14,shard:6}},
   {id:'r_starcore',out:'r_starcore',station:'shrine',skill:'smithing',lvl:26,cost:{shard:24,dust:18,fish:30}},
+  {id:'r_coldward',out:'r_coldward',station:'forge',skill:'smithing',lvl:6,cost:{ore:12,dust:6}},
+  {id:'r_emberward',out:'r_emberward',station:'forge',skill:'smithing',lvl:6,cost:{ore:12,dust:6}},
 ];
 
 /* ---------------- SKILLS ---------------- */

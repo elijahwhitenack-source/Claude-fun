@@ -117,3 +117,40 @@ export const LORE_INTRO = {
   title: 'The Hall of Echoes',
   text: 'A record of what the shattered Tree still whispers — visions, encounters, and the names struck from the archive.',
 };
+
+/* Lore tablets — small glowing stones scattered through each biome.
+   Keyed by biome; worldgen places one per entry, id = `<biome>_<index>`. */
+export const TABLETS = {
+  meadow: [
+    { title: 'Warden Record I', text: 'Before the Shattering, the dead walked to the nearest root and simply… stopped being afraid. We called it the Easy Road. We did not know it could break.' },
+    { title: 'A Child\'s Carving', text: '“Mama says the stars are leaves. When one falls, somebody we love goes up to be it.” The hand that cut this was very small.' },
+    { title: 'Field Note', text: 'The meadow Hollow do not hunt. They drift toward sound, then toward each other, as if remembering they were once a crowd.' },
+  ],
+  forest: [
+    { title: 'Grovekeeper\'s Ledger', text: 'The Echo-groves replay the living. Stand still and you will see yourself as you were an hour ago, a year, a life. The Tree forgets nothing here, even now.' },
+    { title: 'Thornwraith Study', text: 'They trail thorns because in life they were hedge-wardens, and they are still, gently, trying to keep something fenced in. We never learned what.' },
+    { title: 'Burned Page', text: '…and so the Margin was not a place but a thinness, and Caelun mapped it the way a man maps a wound he intends to close…' },
+  ],
+  mountain: [
+    { title: 'Peakwarden\'s Oath', text: 'Aetheri-ore sings when the Tree is whole. It has been silent twenty years. I climb each dawn to listen. One day it will hum again, or I will not come down.' },
+    { title: 'Stone-Walker Lore', text: 'They are immune to the blade because grief cannot be cut. Strike them with what they feared in life — fire, the void — and they remember how to fall.' },
+    { title: 'Survey Marker', text: 'Altitude thins the breath and the soul both. Wardens posted here served short rotations. The Hollow here serve forever.' },
+  ],
+  tundra: [
+    { title: 'Aetherwatch Log', text: 'The cold preserves. Hollow that fray in an hour elsewhere stand whole for centuries here — patient, unhurried, certain we will join them. Keep a fire.' },
+    { title: 'Frostsinger Note', text: 'Their hum builds Coherence in the listener — a steadiness, a warmth of mind. The Tree once sang it to the newly dead. Now only the ice remembers the tune.' },
+    { title: 'Last Entry', text: 'Ward failed at dusk. Cold in my hands now. If you read this, the bonfires are the only mercy left in the north. Tend them. — Warden Ysolde' },
+  ],
+  ember: [
+    { title: 'Ashen Doctrine', text: 'We practiced Cooling here — the rite of letting go. The Emberwaste was a place of endings done kindly. Caelun would call that proof. It is not.' },
+    { title: 'Cinder Record', text: 'Lava is the isle\'s old grief made literal: heat with nowhere to go. Walk it unwarded and it will share the burden with you. It is generous that way.' },
+    { title: 'Ember-Witch Scrawl', text: 'The Remnants perform the Cooling mid-battle, out of habit, trying to comfort the very things killing them. Mercy is a hard reflex to unlearn.' },
+  ],
+  crystal: [
+    { title: 'Hollow-Glass Theorem', text: 'The Reflected copy your last act because in death they have nothing of their own left to do. Change, and they cannot follow. Be unpredictable. Be alive.' },
+    { title: 'Echo-Maze Key', text: 'The paths flip for those who walk by certainty. Only the doubtful, the questioning, pass straight through. The Tree always did prefer a mind that asked why.' },
+    { title: 'Void-touched Query', text: 'One asked me, in the middle of trying to kill me, whether I thought it had been a good person. I am still deciding what it deserved to hear.' },
+  ],
+};
+
+export const BIOME_LABEL = { meadow:'Verdant Meadow', forest:'Whispering Forest', mountain:'The Peaks', tundra:'Frostpeak Tundra', ember:'The Emberwaste', crystal:'Crystal Hollows', plains:'Open Plains' };

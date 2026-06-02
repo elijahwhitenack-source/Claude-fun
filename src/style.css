@@ -150,6 +150,15 @@
   .qbar{height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:3px;}
   .qfill{height:100%;background:linear-gradient(90deg,var(--teal),var(--good));transition:width .4s;}
   /* active-objective tracker overlay */
+  #expbar{margin-top:6px;display:none;align-items:center;gap:6px;width:fit-content;pointer-events:auto;
+    background:rgba(12,18,34,.82);border:1px solid var(--line);border-radius:11px;padding:4px 9px;backdrop-filter:blur(4px);}
+  #expbar.show{display:flex;animation:fadeIn .3s;}
+  #expbar.cold{border-color:rgba(150,200,255,.5);} #expbar.heat{border-color:rgba(255,140,70,.5);}
+  #expbar .exp-ic{font-size:12px;}
+  #expbar .exp-track{width:90px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;}
+  #expbar .exp-fill{height:100%;transition:width .2s;}
+  #expbar.cold .exp-fill{background:linear-gradient(90deg,#9bd0ff,#5aa9ff);}
+  #expbar.heat .exp-fill{background:linear-gradient(90deg,#ffd24a,#ff5a3a);}
   #questtracker{margin-top:6px;display:none;pointer-events:auto;cursor:pointer;width:fit-content;max-width:62%;
     background:rgba(12,18,34,.82);border:1px solid var(--line);border-radius:11px;padding:6px 10px;backdrop-filter:blur(4px);}
   #questtracker.show{display:block;animation:fadeIn .3s;}

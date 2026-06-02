@@ -4,7 +4,7 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Session 5)
+## Current architecture (after Session 6)
 
 ```
 astrari/
@@ -164,3 +164,28 @@ Crystal Hollows was >16.6 ms (sub-60fps) even on desktop before; now everything 
 - Session 6 = **world expansion + biome depth** (bigger map, biome mechanics, 64 lore tablets, new interactables, town expansion). Lore tablets will finally feed the `read` objective type + the Lore Journal's tablet section.
 - Inline-handler fns added this session: `panelLore`, `dlgChoose` (in the `Object.assign(window,…)` block).
 - NPC↔quest binding: `talkNPC` finds the first quest with `q.npc===role` that's ACTIVE/COMPLETE. Keep only one story quest per NPC active at a time (the chain + arc-stub gating already ensures this).
+
+---
+
+## Session 6 — World Expansion + Biome Depth — 2026-06-01
+
+Scope call: focused on **biome *depth*** (higher value, lower risk) over raw map-size expansion. Map stayed 78×72; `MAPVER` bumped 2→3 so existing worlds regen with the new content.
+
+### Completed
+- **6C — Lore tablets** (`story.js` TABLETS, ~3 per biome × 6 biomes): glowing stele interactables placed in worldgen, tap-to-read → modal with lore text, logged to the Lore Journal (grouped by biome with x/total + ✓), fires the `read` objective type (now exercised), and a **biome-completion bonus** (+80◈ +25✦) when all of a biome's tablets are read. State in `S.read` / `S.tabBonus`.
+- **6B/6D — Biome exposure system**: tundra **cold** / emberwaste **heat** drain an `exposure` meter (shown as a HUD bar `#expbar` only in-hazard); lava-adjacent ember drains faster; **bonfires** (new interactable, placed in tundra/ember) warm you back up; at 0 you safe-retreat to Skyhaven (no loss). Two craftable **ward relics** (`r_coldward`/`r_emberward`, forge Lv 6) negate their hazard via a `ward` field.
+- **6E — Town life**: 3 wandering **townsfolk** NPCs with rotating ambient lines (`TOWN_LINES`); **warm window-lights** glow on every building at night.
+
+### Deferred (documented — these deserve their own focused pass)
+- **6A map-size expansion** to 120×110 + new sub-areas + dungeon entrances + Fraying Edge + boundary blending. (Riskiest: full worldgen + save-migration verification. Current map is already ~3× the original.)
+- **6B** crystal echo-maze (pressure-plate redirect) + mountain altitude/stamina; **forest echo-grove** vision flash.
+- **6E** the 3 new town buildings (Library / Training Ground / Passage Node Workshop).
+- Biome-completion currently grants resources rather than unlocking a bonus *quest* (engine supports either).
+
+### Verified
+- Tablet renders + reads ("Warden Record I"), Lore Journal tablet section, ward relics craftable, exposure HUD element present, townsfolk + night window-lights, all 6 panels, no console errors. Build clean (~149 KB).
+
+### Next session notes
+- Session 7 = **enemy overhaul + elite system** (biome enemy variants, named elites on a timer, boss phases, world bosses, combat abilities).
+- The `read` objective type is now live — future "study the tablets" quests can use it.
+- Test hooks added then removed this session: `__find`, `__readNear`. Perf hooks (`__perf`/`__bench`/`__tp`/`__time`/`__spawnFx`) remain.
