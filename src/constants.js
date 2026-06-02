@@ -102,3 +102,21 @@ export const RESINFO={astral:'◈',shard:'✦',ore:'⛁',wood:'🪵',herb:'🌿'
 
 /* ---------------- WEATHER ---------------- */
 export const WEATHERS=['clear','clear','cloud','rain','fog','aurora','storm'];
+
+/* ---------------- PROGRESSION (Session 9) ---------------- */
+// Gear set bonuses — equip all 3 pieces. b: { atkPct, hpPct, teamAtk, gather }
+export const GEAR_SETS=[
+  {id:'astralite',name:'Astralite Regalia',pieces:['w_astralite','a_astralite','r_tide'],b:{gather:0.15},desc:'+15% gathering yield'},
+  {id:'verdantine',name:'Verdantine Panoply',pieces:['w_verdant','a_verdant','r_aurora'],b:{teamAtk:0.12,hpPct:0.10},desc:'+12% team attack · +10% Warden HP'},
+  {id:'voidsteel',name:'Voidsteel Eclipse',pieces:['w_void','a_void','r_voidheart'],b:{atkPct:0.18,teamAtk:0.10},desc:'+18% attack · +10% team attack'},
+  {id:'crystalweave',name:'Crystalweave Accord',pieces:['a_crystal','w_aetherstaff','r_starcore'],b:{atkPct:0.10,hpPct:0.15,gather:0.10},desc:'+10% atk · +15% HP · +10% yield'},
+];
+// Skill mastery milestones — perks unlocked at level thresholds.
+export const MILESTONES={
+  mining:[{lvl:10,n:'Ore Sense'},{lvl:25,n:'Deep Veins'},{lvl:50,n:'Voidite Eye'},{lvl:99,n:'Deepwarden'}],
+  woodcutting:[{lvl:10,n:'Clean Cut'},{lvl:25,n:'Heartwood'},{lvl:50,n:'Grovemind'},{lvl:99,n:'Wildwarden'}],
+  foraging:[{lvl:10,n:'Keen Eye'},{lvl:25,n:'Bloomsense'},{lvl:50,n:'Spore-touched'},{lvl:99,n:'Greenwarden'}],
+  fishing:[{lvl:10,n:'Steady Hand'},{lvl:25,n:'Tide-reader'},{lvl:50,n:'Deepcaller'},{lvl:99,n:'Tidewarden'}],
+  smithing:[{lvl:10,n:'True Temper'},{lvl:25,n:'Runesmith'},{lvl:50,n:'Starsmith'},{lvl:99,n:'Forgewarden'}],
+  combat:[{lvl:10,n:"Warden's Nerve"},{lvl:25,n:'Battle Sense'},{lvl:50,n:'Unbroken'},{lvl:99,n:'Starborn'}],
+};

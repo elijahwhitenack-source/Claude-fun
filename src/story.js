@@ -101,6 +101,48 @@ export const DLG = {
   ],
 };
 
+// ---- ACT 2 — the biome bosses each hold a Memory Shard of Yvalethi's message ----
+Object.assign(DLG, {
+  a2_mournroot_done: [
+    { sp: 'NARRATOR', text: 'Mournroot stills. From its unspooling thorns rises a shard of pale light — a Memory.' },
+    { sp: 'Yvalethi', port: 'yvalethi', text: 'The first thing you must understand: I did not die. I divided. Grief is not an ending — it is a thread left untied. Gather my threads, Warden.' },
+    { sp: 'PLAYER', port: 'player', text: 'A piece of her. Lune has to see this.' },
+  ],
+  a2_skarn_intro: [
+    { sp: 'NARRATOR', text: 'Skarn the Peakbreaker is half-stone now, cracking, holding something in. A Memory waits inside the fracture — but the stone has not finished breaking.' },
+    { sp: 'Skarn', port: 'caelun', text: 'I kept the pass. I keep it still. If you take the shard, I crack open. Force it, and be done. Or… wait with me, and let me let go on my own. Choose.',
+      choices: [
+        { text: 'Force the stone — take the shard now.', set: 'skarn_force', seq: 'a2_skarn_force' },
+        { text: 'Wait. Let him release it himself.', set: 'skarn_release', seq: 'a2_skarn_release' },
+      ] },
+  ],
+  a2_skarn_force: [
+    { sp: 'NARRATOR', text: 'You strike the fracture. Skarn shatters — fast, clean, gone. The shard is in your hand before the dust settles.' },
+    { sp: 'Yvalethi', port: 'yvalethi', text: 'Sometimes mercy is speed. Remember that you chose it. The lattice will remember too.' },
+  ],
+  a2_skarn_release: [
+    { sp: 'NARRATOR', text: 'You lower your blade. Skarn breathes out, slow as a glacier, and lets the stone go on its own terms. The shard drifts to you, warm.' },
+    { sp: 'Yvalethi', port: 'yvalethi', text: 'Sometimes mercy is patience. You waited. So few do. This is the thread the rebuilding needs most.' },
+  ],
+  a2_gelmara_done: [
+    { sp: 'NARRATOR', text: 'Gelmara Frostwidow falls without a sound. A journal of ice cracks open at your feet, and a Memory escapes its frozen pages.' },
+    { sp: 'Yvalethi', port: 'yvalethi', text: 'The cold preserves what should pass. So did I, at the end — I held the dead rather than lose them. That was love, and it was the wound. Do not repeat it forever.' },
+  ],
+  a2_pyrrhaxis_done: [
+    { sp: 'NARRATOR', text: 'The Cinder-King gutters out. In the cooling ash, a Memory glows like the last coal.' },
+    { sp: 'Yvalethi', port: 'yvalethi', text: 'The Emberwaste taught letting-go as a rite. Caelun saw the rite and called it proof that everything should end. He read the kindness as a verdict. He was always too good a reader.' },
+  ],
+  a2_nullith_done: [
+    { sp: 'NARRATOR', text: 'Nullith, Echo of the Void, unravels into the dark it came from. The last Memory rises — and the others, carried in your shard, rise to meet it.' },
+    { sp: 'Yvalethi', port: 'yvalethi', text: 'You have them all now. Here, then, is the whole of it—' },
+  ],
+  // assembled message (turn in at Lune)
+  a2_message_done: [
+    { sp: 'Archivist Lune', port: 'codex', text: 'Five shards. Twenty years I filed around the shape of this and never let myself read it. Lay them down, Warden. Let me finally do my work.' },
+    { sp: 'Archivist Lune', port: 'codex', text: 'They fit. Of course they fit. She wrote them to fit.' },
+  ],
+});
+
 /* Visions — fade-to-white scenes narrated by Yvalethi's residual intent. */
 export const VISIONS = {
   v_shard: {
@@ -110,6 +152,10 @@ export const VISIONS = {
   v_wound: {
     title: 'The Shape of the Wound',
     caption: 'Look south. The circle stands where one of you tried to mend me and tore wider instead. He is not evil. He is certain. That is worse.',
+  },
+  v_message: {
+    title: "Yvalethi's Whole Message",
+    caption: 'I do not regrow from the outside. No hand can stitch me. I regrow from within, through every soul that passes cleanly — and the Wardens, rebuilt and scattered like seeds, are how the passing is taught again. I shattered into the lesson. You are not here to repair me. You are here to begin. Go to the Edge. Tell Caelun what the reading actually says.',
   },
 };
 

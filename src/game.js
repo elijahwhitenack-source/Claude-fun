@@ -8,7 +8,7 @@ import { drawGlow } from './glow.js';
 import { updateParticles, drawParticles, burstSpray, burstRing, burstMotes } from './particles.js';
 import { QUESTS, QS, FLAGS, CHAIN_LABEL } from './quests.js';
 import { DLG, VISIONS, NPC_INFO, CAELUN_SPEC, LORE_INTRO, TABLETS, BIOME_LABEL } from './story.js';
-import { TILE, ELEM, RAR, POOL, champDef, GEAR, RECIPES, SKILLS, RESINFO, WEATHERS } from './constants.js';
+import { TILE, ELEM, RAR, POOL, champDef, GEAR, RECIPES, SKILLS, RESINFO, WEATHERS, GEAR_SETS, MILESTONES } from './constants.js';
 
 /* ===================================================================
    STATE
@@ -973,6 +973,7 @@ function loop(){
   else if(!player.busy){ stepPlayer(dt); updateEntities(dt); }
   updateParticles(dt);
   if(!player.busy)updateExposure(dt);
+  if(storyQueue.length)processStoryQueue();
   if(dlg&&dlg.typing)dlgTick(dt);
   if(shakeMag>0)shakeMag=Math.max(0,shakeMag-dt*42);
   updateWeather(dt);
@@ -1038,7 +1039,9 @@ function gainXp(skill,amt){
   const s=S.skills[skill]||(S.skills[skill]={xp:0});
   const before=levelOf(s.xp); s.xp+=amt; const after=levelOf(s.xp);
   if(after>before){ toast(`${SKILLS.find(k=>k.id===skill).n} reached Level ${after}! 🎉`);
-    burstRing(player.px*TILE+TILE/2, player.py*TILE+TILE-14, '#ffd479', 18, 110); }
+    burstRing(player.px*TILE+TILE/2, player.py*TILE+TILE-14, '#ffd479', 18, 110);
+    const ms=(MILESTONES[skill]||[]).find(m=>m.lvl>before&&m.lvl<=after);
+    if(ms)setTimeout(()=>toast('🏆 '+(SKILLS.find(k=>k.id===skill).n)+' mastery: '+ms.n+' unlocked!'),700); }
   updateObjective('skill_level', skill, after);
 }
 function skillBonus(skill){let b=0;for(const slot of['weapon','armor','relic']){const g=S.equip[slot]&&GEAR[S.equip[slot]];if(g&&g.sk&&g.sk[skill])b+=g.sk[skill];}return b;}
@@ -1064,6 +1067,8 @@ function gatherNode(n){
   gathering={node:n, start:now, dur, col, ic:sk.ic}; // progress arc replaces the text prompt
   setTimeout(()=>{
     let yld=sk.base+Math.floor(lvl/8)+skillBonus(sk.id);
+    if(lvl>=10)yld+=1;                       // milestone: +1 yield at skill Lv 10
+    yld=Math.round(yld*(1+setBonus().gather)); // Astralite/Crystalweave gather bonus
     S.res[sk.res]+=yld;
     if(n.type==='plant'&&Math.random()<0.5)S.res.bio+=1;
     if(n.type==='rock'&&Math.random()<0.12)S.res.dust+=1;
@@ -1230,13 +1235,17 @@ function closeModal(){$('#modal').classList.remove('show');if(fish){cancelAnimat
 /* ===================================================================
    WARDEN STATS
    =================================================================== */
+function activeSets(){ const eq=[S.equip.weapon,S.equip.armor,S.equip.relic]; return GEAR_SETS.filter(s=>s.pieces.every(p=>eq.includes(p))); }
+function setBonus(){ const b={atkPct:0,hpPct:0,teamAtk:0,gather:0}; activeSets().forEach(s=>{for(const k in s.b)b[k]=(b[k]||0)+s.b[k];}); return b; }
 function wardenStats(){
   const wpn=S.equip.weapon&&GEAR[S.equip.weapon], arm=S.equip.armor&&GEAR[S.equip.armor], rel=S.equip.relic&&GEAR[S.equip.relic];
   const cl=combatLevel();
-  // slower warden scaling (was 18+cl*4 / 140+cl*14) — enemies now keep pace harder
   let atk=16+cl*2.8, hp=130+cl*10, teamAtk=0;
   [wpn,arm,rel].forEach(g=>{if(g){atk+=g.atk||0;hp+=g.hp||0;teamAtk+=g.teamAtk||0;}});
-  return {atk,hp,teamAtk,cl};
+  // combat milestone: Warden's Nerve (+5% dmg at combat 10)
+  if(cl>=10)atk*=1.05;
+  const sb=setBonus(); atk*=(1+sb.atkPct); hp*=(1+sb.hpPct); teamAtk+=sb.teamAtk;
+  return {atk:Math.round(atk),hp:Math.round(hp),teamAtk,cl,sets:activeSets()};
 }
 /* ---- BIOME EXPOSURE (tundra cold / ember heat) ---- */
 let exposure=100, expState='';
@@ -1340,7 +1349,8 @@ function panelBag(){
       ${g?`<button class="btn ghost sm" onclick="unequip('${slot}')">Unequip</button>`:''}</div>`;
   });
   modal(`<h2>Warden's Pack</h2>
-    <div class="card"><h3>Equipped <span class="chip">⚔${w.atk} ❤${w.hp}${w.teamAtk?' · +'+(w.teamAtk*100).toFixed(0)+'% team atk':''}</span></h3>${slots}</div>
+    <div class="card"><h3>Equipped <span class="chip">⚔${w.atk} ❤${w.hp}${w.teamAtk?' · +'+(w.teamAtk*100).toFixed(0)+'% team atk':''}</span></h3>${slots}
+      ${(w.sets&&w.sets.length)?w.sets.map(s=>`<div style="font-size:11px;color:var(--gold);margin-top:4px">⟡ <b>${s.name}</b> — ${s.desc}</div>`).join(''):''}</div>
     <div class="card"><h3>Owned Gear</h3><div id="ownedgear">${ownedGearHTML()}</div></div>
     <div class="card"><h3>Materials</h3>${mats.map(m=>`<span class="pill">${RESINFO[m]} ${fmt(S.res[m])} ${m}</span>`).join('')}</div>`);
   // draw equipped slot avatars
@@ -1427,10 +1437,12 @@ function panelSkills(){
     const lvl=levelOf(xp);tot+=lvl;
     const cur=lvlReq(lvl),nxt=lvlReq(lvl+1),pct=lvl>=99?100:(xp-cur)/(nxt-cur)*100;
     const sub=s.id==='combat'?'Win battles':s.id==='smithing'?'Forge gear':`Yield +${s.base+Math.floor(lvl/8)+skillBonus(s.id)} ${s.resn}/action`;
+    const ms=MILESTONES[s.id]||[]; const earned=ms.filter(m=>lvl>=m.lvl); const next=ms.find(m=>lvl<m.lvl);
+    const mline=`<div style="font-size:10px;margin-top:3px"><span style="color:var(--gold)">🏆 ${earned.length?earned.map(m=>m.n).join(' · '):'—'}</span>${next?` <span class="muted">· next: ${next.n} (Lv ${next.lvl})</span>`:''}</div>`;
     return `<div class="skill"><div class="si">${s.ic}</div><div class="body">
       <div class="top"><span>${s.n} <span class="chip">Lv ${lvl}</span></span><span>${Math.floor(xp-cur)}/${Math.floor(nxt-cur)} xp</span></div>
       <div class="xpbar"><div class="xpfill" style="width:${pct}%"></div></div>
-      <div class="muted" style="font-size:11px;margin-top:2px">${sub}</div></div></div>`;
+      <div class="muted" style="font-size:11px;margin-top:2px">${sub}</div>${mline}</div></div>`;
   }).join('');
   modal(`<h2>Wardencraft</h2><div class="card">${rows}</div>
     <div class="card"><h3>Total Warden Level <span class="chip">${tot}</span></h3>
@@ -1620,8 +1632,14 @@ function updateObjective(type,target,amount){ if(!S.qs)return; let any=false;
       any=true; }
     if(st.s===QS.ACTIVE && q.objectives.every(o=>(st.o[o.id]||0)>=o.count)){ st.s=QS.COMPLETE; any=true;
       toast('✅ Quest complete: '+q.title);
-      if(q.auto)setTimeout(()=>{ if(S.qs[q.id]&&S.qs[q.id].s===QS.COMPLETE)grantQuestRewards(q); },60); } }
+      if(q.auto)setTimeout(()=>{ if(S.qs[q.id]&&S.qs[q.id].s===QS.COMPLETE){ if(q.doneDlg||q.vision)storyQueue.push(q); else grantQuestRewards(q); } },60); } }
   if(any){ save(); updateQuestTracker(); } }
+// story queue — plays auto-quest memory dialogue once combat/modals clear (e.g. after a boss victory)
+let storyQueue=[];
+function processStoryQueue(){ if(!storyQueue.length||inBattle||dlg||vision||player.busy)return;
+  if($('#modal').classList.contains('show'))return;
+  const q=storyQueue.shift();
+  runDialogue(q.doneDlg||[], ()=>{ if(q.vision)showVision(q.vision,()=>grantQuestRewards(q)); else grantQuestRewards(q); }); }
 function grantQuestRewards(q){ const r=q.rewards||{}, st=S.qs[q.id]; if(!st)return;
   if(r.astral)S.res.astral+=r.astral; if(r.shard)S.res.shard+=r.shard;
   ['ore','wood','herb','fish','dust','bio'].forEach(k=>{ if(r[k])S.res[k]=(S.res[k]||0)+r[k]; });
@@ -1725,13 +1743,14 @@ function dlgNext(){ const st=dlg; if(!st)return; st.i++;
   nameEl.textContent=narr?'':ln.sp;
   textEl.className=narr?'narr':'';
   // portrait
-  const spec=ln.port?portraitSpec(ln.port):null;
-  if(spec){ portWrap.classList.remove('hide'); const c=$('#dlg-pc'),g=c.getContext('2d'); g.clearRect(0,0,132,132);
-    const sg=g.createRadialGradient(66,60,4,66,70,64); sg.addColorStop(0,'rgba(40,55,90,.5)');sg.addColorStop(1,'rgba(40,55,90,0)');
-    g.fillStyle=sg;g.fillRect(0,0,132,132);
-    if(ln.port==='caelun'){ for(let k=0;k<7;k++){drawGlow(g,30+Math.random()*72,30+Math.random()*80,'#7a3bd4',3+Math.random()*3,0.5);} }
-    drawAvatar(g,66,116,2.9,spec,'down',0); }
-  else portWrap.classList.add('hide');
+  if(ln.port==='yvalethi'){ portWrap.classList.remove('hide'); const c=$('#dlg-pc'),g=c.getContext('2d'); g.clearRect(0,0,132,132); drawYvalethi(g,66,124,0.62); }
+  else { const spec=ln.port?portraitSpec(ln.port):null;
+    if(spec){ portWrap.classList.remove('hide'); const c=$('#dlg-pc'),g=c.getContext('2d'); g.clearRect(0,0,132,132);
+      const sg=g.createRadialGradient(66,60,4,66,70,64); sg.addColorStop(0,'rgba(40,55,90,.5)');sg.addColorStop(1,'rgba(40,55,90,0)');
+      g.fillStyle=sg;g.fillRect(0,0,132,132);
+      if(ln.port==='caelun'){ for(let k=0;k<7;k++){drawGlow(g,30+Math.random()*72,30+Math.random()*80,'#7a3bd4',3+Math.random()*3,0.5);} }
+      drawAvatar(g,66,116,2.9,spec,'down',0); }
+    else portWrap.classList.add('hide'); }
   // typewriter
   st.full=ln.text; st.shown=0; st.typing=true; textEl.textContent=''; adv.classList.add('hide');
   st._choices=ln.choices||null;
@@ -1749,6 +1768,7 @@ function dlgAdvance(){ const st=dlg; if(!st)return;
   dlgNext(); }
 function dlgChoose(i){ const st=dlg; if(!st||!st._choices)return; const c=st._choices[i];
   if(c.set)setFlag(c.set); if(c.vision){ const v=c.vision; dlgEnd(()=>showVision(v)); return; }
+  if(c.seq && DLG[c.seq]){ st.lines=st.lines.slice(0,st.i+1).concat(DLG[c.seq]); } // branch into a follow-up
   st._choices=null; dlgNext(); }
 function dlgEnd(after){ const cb=dlg&&dlg.onDone; dlg=null; $('#dlg').classList.remove('show'); player.busy=false;
   if(after)after(); else if(cb)cb(); }
@@ -1823,7 +1843,7 @@ function talkNPC(n){
     if(st.s===QS.ACTIVE && !st.told && q.startDlg){ st.told=1; save();
       runDialogue(q.startDlg,()=>{ if(role)updateObjective('talk',role,1);
         const s2=S.qs[q.id];
-        if(s2.s===QS.COMPLETE && !q.auto && q.doneDlg) concludeQuest(q,n);  // single-talk quest finishes now
+        if(s2.s===QS.COMPLETE && !q.auto){ if(q.doneDlg)concludeQuest(q,n); else turnInQuest(q,n); }  // single-talk quest finishes now
         else npcServices(n); });
       return; }
   }
@@ -2054,7 +2074,17 @@ function startEncounter(m){
     foes.push({name:lead?leadName:'Hollow Spawn',
       spec:{kind:'monster',cloak:ELEM[el].col,glow:(isBoss||m.elite)&&lead?'#ffd24a':'#ff5a7a',vidx:lead?(m.vidx||0):0,elite:m.elite&&lead},el,
       atk:Math.round((11+lv*6.5)*(lead?1.3:1)*(isBoss&&lead?1.5:1)*eliteMul),hp,maxhp:hp,alive:true,status:null,lead});}
-  battleData={allies,foes,mon:m,eff:base,isBoss,elite:m.elite};
+  // ---- champion synergies (Session 9) ----
+  const champs=S.squad.filter(Boolean).map(id=>champDef(id));
+  let synAtk=1, synHp=1, synMsg='';
+  if(champs.length>=3){
+    const els={}; champs.forEach(c=>els[c.el]=(els[c.el]||0)+1);
+    const maxEl=Object.keys(els).reduce((a,b)=>els[b]>els[a]?b:a,champs[0].el);
+    if(els[maxEl]>=3){ synAtk*=1.20; synMsg='Elemental Harmony · '+ELEM[maxEl].n+' — +20% attack'; }
+    if(champs.every(c=>c.rar==='legend')){ synAtk*=1.15; synHp*=1.15; synMsg='★ Starborn Trio — +15% all stats'; }
+  }
+  if(synAtk!==1||synHp!==1)allies.forEach(u=>{ u.atk=Math.round(u.atk*synAtk); u.hp=Math.round(u.hp*synHp); u.maxhp=Math.round(u.maxhp*synHp); });
+  battleData={allies,foes,mon:m,eff:base,isBoss,elite:m.elite,synMsg};
   showBattleModal();
 }
 let battleData=null;
@@ -2117,7 +2147,9 @@ function updateBossBar(){const bu=battleData&&battleData.bossU;if(!bu)return;
   const t=$('#bosshp'); if(t)t.textContent=Math.max(0,Math.ceil(bu.hp))+' / '+bu.maxhp;}
 function applyStatus(u,el){const s=STATUS[el];if(!s)return;u.status={...s,dur:s.dur};}
 async function resolveBattle(){
-  const{allies,foes}=battleData;blog('<b style="color:var(--teal)">The Hollow lunges…</b>');
+  const{allies,foes}=battleData;
+  if(battleData.synMsg)blog('<b style="color:var(--gold)">⟡ '+battleData.synMsg+'</b>');
+  blog('<b style="color:var(--teal)">The Hollow lunges…</b>');
   let round=0;
   while(allies.some(u=>u.alive)&&foes.some(u=>u.alive)&&round<40){round++;
     // tick damage-over-time statuses at round start

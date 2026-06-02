@@ -4,7 +4,7 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Session 7 + polish)
+## Current architecture (after Sessions 8–9)
 
 ```
 astrari/
@@ -213,5 +213,29 @@ User asked (via AskUserQuestion) for: moody/atmospheric look, focus on **terrain
 ### Verified
 - Custom dock icons render; moody dappled terrain; elite "Ashka the Glaciant" with aura/crown/name; variant silhouettes; bonfires + tablets in-scene; all 6 panels; no console errors. Build clean (~154 KB).
 
-### Next (paused for user check-in, per their choice)
-- Session 8 = **Act 2 story content** (biome-boss quests, Skarn choice, Gelmara journal-combat, Nullith mirror fight, NPC arcs). Or revisit deferred Session-7 depth / the Session-6 map expansion.
+---
+
+## Session 8 — Act 2 Story + Session 9 — Progression — 2026-06-01
+
+User: "do 8 and 9 real quick, just send it." Focused cores, shipped together.
+
+### Session 8 — Act 2 (the Memory Shards) — Completed (core)
+- **5 biome-boss quests** (`a2_mournroot/skarn/gelmara/pyrrhaxis/nullith`, chain `main` act 2, unlock on `CAELUN_MET` + combat-level gates). Each is `auto` (completes on `boss_defeated <name>`), then a **story queue** (`storyQueue`/`processStoryQueue` in the loop) plays the boss's **Memory dialogue + Yvalethi vision** once the victory screen clears, grants a `mem_*` flag.
+- **Skarn moral choice**: his Memory dialogue branches (force vs release) via new dialogue `seq` support in `dlgChoose` — sets `skarn_force`/`skarn_release` and plays the matching outcome.
+- **Assembled message**: `a2_message` (turn in at Lune, unlocks once all 5 `mem_*` flags are set) plays the full Yvalethi message vision (`v_message`) + the Act 2 climax, sets `act2_done`, big reward.
+- **Yvalethi portrait** now renders in dialogue (the luminous figure) for `port:'yvalethi'` lines.
+
+### Session 9 — Progression — Completed (core)
+- **Gear set bonuses** (`GEAR_SETS`, `activeSets`/`setBonus`): 4 three-piece sets (Astralite/Verdantine/Voidsteel/Crystalweave) → atk%/hp%/teamAtk/gather bonuses, applied in `wardenStats` + `gatherNode`, shown in the Bag's Equipped card.
+- **Champion synergies** (in `startEncounter`): 3 matching elements → +20% attack ("Elemental Harmony"); all-legendary trio → +15% all stats ("Starborn"); announced in the combat log.
+- **Skill mastery milestones** (`MILESTONES`, 4 per skill): toast on unlock in `gainXp`, shown per-skill in the Skills panel; combat-Lv-10 gives +5% warden damage, skill-Lv-10 gives +1 gather yield (concrete early perks).
+
+### Deferred (documented)
+- Session 8: Gelmara journal-during-combat + Nullith mirror-fight unique mechanics (abstracted to standard boss fights for now); the full multi-quest **NPC arcs** (Sef/Borin/Vael/Lune/Quill 1–5) and **champion memory arcs** — still stubs from Session 5.
+- Session 9: the three **new skills** (Lore/Alchemy/Passage-Weaving) and the **prestige / Warden Network** endgame.
+
+### Verified
+- Clean build (~163 KB), no console errors, all 6 panels open/close, Skills milestones render. (Act 2 quests gate on `CAELUN_MET` so they appear once Act 1 is finished; sets/synergies apply in `wardenStats`/`startEncounter`.)
+
+### Next (paused)
+- Session 10 = audio expansion; Session 11 = Acts 3–4 + endings. Or backfill any deferred depth (world bosses, NPC/champion arcs, new skills, map expansion, unique boss mechanics).
