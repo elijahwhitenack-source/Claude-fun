@@ -602,6 +602,13 @@ function drawBonfire(px,py,n){ const cx=px+TILE/2, by=py+TILE-5, f=0.6+0.4*Math.
   drawGlow(ctx,cx,by-8,'#ff8a3a',12+f*5,0.85);
   ctx.fillStyle='#ff7a2a';ctx.beginPath();ctx.moveTo(cx-5,by);ctx.quadraticCurveTo(cx-3,by-13*f,cx,by-16*f);ctx.quadraticCurveTo(cx+3,by-13*f,cx+5,by);ctx.closePath();ctx.fill();
   ctx.fillStyle='#ffd24a';ctx.beginPath();ctx.moveTo(cx-2.5,by);ctx.quadraticCurveTo(cx,by-8*f,cx,by-11*f);ctx.quadraticCurveTo(cx+2.5,by-7*f,cx+2.5,by);ctx.closePath();ctx.fill(); }
+// the warden's torch (held at night) — handle + flame
+function drawTorch(g,x,y,face){ const s=face==='left'?-1:1, f=0.7+0.3*Math.sin(now*0.02+x);
+  g.strokeStyle='#5a3b22';g.lineWidth=2.4;g.lineCap='round';g.beginPath();g.moveTo(x-2*s,y+6);g.lineTo(x+2*s,y-3);g.stroke();
+  const fx=x+2*s, fy=y-4;
+  drawGlow(g,fx,fy-2,'#ff9a3a',9+f*4,0.9);
+  g.fillStyle='#ff7a2a';g.beginPath();g.moveTo(fx-2.4,fy);g.quadraticCurveTo(fx-1.4,fy-7*f,fx,fy-9*f);g.quadraticCurveTo(fx+1.4,fy-7*f,fx+2.4,fy);g.closePath();g.fill();
+  g.fillStyle='#ffe07a';g.beginPath();g.moveTo(fx-1.3,fy);g.quadraticCurveTo(fx,fy-4*f,fx,fy-6*f);g.quadraticCurveTo(fx+1.3,fy-4*f,fx+1.3,fy);g.closePath();g.fill(); }
 function readTablet(n){ const id=n.biome+'_'+n.tid, t=TABLETS[n.biome]&&TABLETS[n.biome][n.tid]; if(!t)return;
   const first=!(S.read&&S.read[id]); if(!S.read)S.read={}; S.read[id]=1; logLore('tablet',id);
   if(first){ updateObjective('read',id,1); updateObjective('read','*',1); checkBiomeTablets(n.biome); save();
@@ -705,7 +712,9 @@ function drawWeatherOverlay(){
 let lightCanvas=null, lgx=null;
 function punchLight(lg,x,y,r,strength){ if(x<-r||y<-r||x>VW+r||y>VH+r)return;
   const g=lg.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0,`rgba(0,0,0,${strength})`);g.addColorStop(0.65,`rgba(0,0,0,${strength*0.42})`);g.addColorStop(1,'rgba(0,0,0,0)');
+  // small bright core, long gentle falloff → soft pools instead of hard bright blobs
+  g.addColorStop(0,`rgba(0,0,0,${strength})`);g.addColorStop(0.32,`rgba(0,0,0,${strength*0.5})`);
+  g.addColorStop(0.66,`rgba(0,0,0,${strength*0.16})`);g.addColorStop(1,'rgba(0,0,0,0)');
   lg.fillStyle=g;lg.fillRect(x-r,y-r,r*2,r*2); }
 function drawLighting(){
   const dt=dayTint();
@@ -715,24 +724,29 @@ function drawLighting(){
   const lg=lgx;
   lg.globalCompositeOperation='source-over';
   lg.clearRect(0,0,VW,VH);
-  lg.fillStyle=`rgba(${dt.tint},${Math.min(0.84,dt.dark*1.4)})`;
+  lg.fillStyle=`rgba(${dt.tint},${Math.min(0.9,dt.dark*1.55)})`;   // deeper, moodier dark
   lg.fillRect(0,0,VW,VH);
   // punch out pools of light
   lg.globalCompositeOperation='destination-out';
   const tints=[];
-  const pulse=1+Math.sin(now*0.004)*0.05;
-  punchLight(lg, player.px*TILE+TILE/2-cam.x, player.py*TILE+TILE/2-cam.y, 88*pulse, 0.92);
+  const fl=1+Math.sin(now*0.014)*0.1;                              // torch flicker
+  const tx=player.px*TILE+TILE/2-cam.x+(player.face==='left'?-6:6), ty=player.py*TILE+TILE/2-cam.y-8; // torch in hand
+  punchLight(lg, tx, ty, 34*fl, 0.72);                            // the warden's TORCH — tight, warm pool
+  tints.push([tx,ty,38*fl,'255,170,80',0.34*fl]);
   buildings.forEach(b=>{ const cx=(b.x+b.w/2)*TILE-cam.x, cy=(b.y+b.h/2)*TILE-cam.y;
     if(cx<-130||cy<-130||cx>VW+130||cy>VH+130)return;
-    if(b.kind==='forge'){const fl=1+Math.sin(now*0.011)*0.08;punchLight(lg,cx,cy,84*fl,0.9);tints.push([cx,cy,96,'255,150,60',0.55*fl]);}
-    else if(b.kind==='shrine'){punchLight(lg,cx,cy,80,0.85);tints.push([cx,cy,90,'150,120,255',0.42]);}
-    else if(b.kind==='codex'){punchLight(lg,cx,cy,72,0.8);tints.push([cx,cy,80,'150,120,255',0.34]);}
-    else {punchLight(lg,cx,cy,58,0.8);tints.push([cx,cy,64,'255,210,150',0.3]);} });
+    if(b.kind==='forge'){const f2=1+Math.sin(now*0.011)*0.08;punchLight(lg,cx,cy,60*f2,0.82);tints.push([cx,cy,70,'255,150,60',0.5*f2]);}
+    else if(b.kind==='shrine'){punchLight(lg,cx,cy,56,0.78);tints.push([cx,cy,64,'150,120,255',0.38]);}
+    else if(b.kind==='codex'){punchLight(lg,cx,cy,50,0.74);tints.push([cx,cy,58,'150,120,255',0.3]);}
+    else {punchLight(lg,cx,cy,42,0.72);tints.push([cx,cy,48,'255,210,150',0.26]);} });
   nodes.forEach(n=>{ if(n.type==='crystal'&&!n.depleted){ const cx=n.x*TILE-cam.x+TILE/2, cy=n.y*TILE-cam.y+TILE/2;
     if(cx<-60||cy<-60||cx>VW+60||cy>VH+60)return; const cg=1+Math.sin(now*0.004+n.x)*0.12;
-    punchLight(lg,cx,cy,40*cg,0.7); tints.push([cx,cy,46,'130,170,255',0.42]); } });
+    punchLight(lg,cx,cy,30*cg,0.6); tints.push([cx,cy,34,'130,170,255',0.36]); }
+    else if(n.type==='bonfire'){ const cx=n.x*TILE-cam.x+TILE/2, cy=n.y*TILE-cam.y+TILE/2;
+      if(cx<-60||cy<-60||cx>VW+60||cy>VH+60)return; const bf=1+Math.sin(now*0.013+n.x)*0.12;
+      punchLight(lg,cx,cy,52*bf,0.8); tints.push([cx,cy,58,'255,150,60',0.5*bf]); } });
   monsters.forEach(m=>{ if(m.boss&&m.alive){ const cx=m.x*TILE-cam.x+TILE/2, cy=m.y*TILE-cam.y+TILE/2;
-    if(cx<-90||cy<-90||cx>VW+90||cy>VH+90)return; punchLight(lg,cx,cy,62,0.55); tints.push([cx,cy,66,'255,70,70',0.4]); } });
+    if(cx<-90||cy<-90||cx>VW+90||cy>VH+90)return; punchLight(lg,cx,cy,46,0.5); tints.push([cx,cy,50,'255,70,70',0.36]); } });
   // colored warmth inside the pools
   lg.globalCompositeOperation='lighter';
   for(const s of tints){ const[cx,cy,r,col,a]=s; const g=lg.createRadialGradient(cx,cy,0,cx,cy,r);
@@ -825,7 +839,9 @@ let lastAmbBiome=null;
 function visitBiome(x,y){ if(!inb(x,y))return; const b=biomeMap[y]&&biomeMap[y][x]; if(!b)return;
   if(b!==lastAmbBiome){ lastAmbBiome=b; setAmbientForBiome(b); }
   if(!S.bestiary.biomes[b]){ S.bestiary.biomes[b]=true; updateObjective('reach', b, 1); } }
+let fleeUntil=0;
 function checkAmbush(){
+  if(now<fleeUntil)return;           // brief immunity after fleeing so you can escape
   const px=Math.round(player.px),py=Math.round(player.py);
   for(const m of monsters){ if(m.alive&&dist(px,py,m.x,m.y)<=1){ startEncounter(m); return; } }
 }
@@ -900,10 +916,12 @@ function render(){
       if(m.boss){ ctx.fillStyle='rgba(255,210,90,.95)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';
         ctx.fillText('☠ '+m.boss.name.split(/[ ,]/)[0]+' Lv'+m.lvl, cx2, m.y*TILE-cam.y-8); }
       else if(m.elite){ ctx.fillStyle='#ffd24a';ctx.font='bold 8.5px sans-serif';ctx.textAlign='center';
-        ctx.fillText('★ '+m.eliteName+' Lv'+m.lvl, cx2, m.y*TILE-cam.y-9); }
+        ctx.fillText('★ '+m.eliteName+' Lv'+encounterLevel(m), cx2, m.y*TILE-cam.y-9); }
       else { ctx.fillStyle='rgba(255,90,122,.9)';ctx.font='8px sans-serif';ctx.textAlign='center';
-        ctx.fillText('Lv'+m.lvl, cx2, m.y*TILE-cam.y+2); } }}); });
-  draws.push({y:player.py, fn:()=>drawAvatar(ctx,player.px*TILE-cam.x+TILE/2,player.py*TILE-cam.y+TILE-2,1.05,wardenSpec(),player.face,player.moving?player.bob:0)});
+        ctx.fillText('Lv'+encounterLevel(m), cx2, m.y*TILE-cam.y+2); } }}); });
+  draws.push({y:player.py, fn:()=>{ const pcx=player.px*TILE-cam.x+TILE/2, pcy=player.py*TILE-cam.y+TILE-2, bob=player.moving?player.bob:0;
+    drawAvatar(ctx,pcx,pcy,1.05,wardenSpec(),player.face,bob);
+    if(dayTint().dark>0.22) drawTorch(ctx,pcx+(player.face==='left'?-8:8),pcy-16-bob,player.face); }});
   if(caelun&&caelun.active&&vis(caelun.x,caelun.y))draws.push({y:caelun.y, fn:()=>{ const cx=caelun.x*TILE-cam.x+TILE/2, cy=caelun.y*TILE-cam.y+TILE-2;
     for(let k=0;k<5;k++){ const a=now*0.001+k; drawGlow(ctx,cx+Math.cos(a)*8,cy-18+Math.sin(a*1.3)*10,'#7a3bd4',2.5,0.5); }
     drawAvatar(ctx,cx,cy,1.05,CAELUN_SPEC,caelun.face,Math.sin(now*0.004)*1.2);
@@ -1532,9 +1550,9 @@ function levelHero(id){const h=S.heroes[id],cost=Math.floor(40*Math.pow(h.lvl,1.
   $$('#mbox .statline').forEach(el=>flashEl(el));
   burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,'#ffd479',14,90);}
 function toggleSquad(id){const i=S.squad.indexOf(id);
-  if(i>=0){S.squad[i]=null;save();champDetail(id);toast('Removed from squad');}
-  else{const e=S.squad.indexOf(null);if(e<0)return toast('Squad full (3 max)');S.squad[e]=id;save();champDetail(id);toast('Deployed to squad ⚔');}
-  flashEl('#mbox .row .btn:last-child'); return;}
+  if(i>=0){S.squad[i]=null;save();toast('Removed from squad');}
+  else{const e=S.squad.indexOf(null);if(e<0)return toast('Squad full (3 max)');S.squad[e]=id;save();toast('Deployed to squad ⚔');}
+  panelChamps(); sfx('ui'); }   // route back to the roster so you can keep managing the squad
 
 /* ---- SUMMON ---- */
 function rollRarity(){S.pity++;if(S.pity>=50){S.pity=0;return'legend';}const r=Math.random()*100;
@@ -2108,6 +2126,14 @@ function rollLoot(m){
   return {mats, gear};
 }
 let inBattle=false;
+// the level you'll actually fight — tracks monster level, warden level, and squad power.
+// (bosses are fixed.) Used for BOTH the overworld label and the battle so they match.
+function encounterLevel(m){
+  if(m.boss)return m.lvl;
+  const region=(m.bx>=40)?4:(m.bx<=6?2:0);
+  const squadPow=S.squad.filter(Boolean).reduce((mx,id)=>{const h=S.heroes[id],d=champDef(id);return Math.max(mx,(h?h.lvl:1)+RAR[d.rar].stars*2);},0);
+  return Math.max(m.lvl, combatLevel()-1+region, Math.floor(squadPow*0.75));
+}
 function startEncounter(m){
   if(inBattle||player.busy)return;
   inBattle=true;player.busy=true;player.path=[];player.moving=false;
@@ -2121,11 +2147,7 @@ function startEncounter(m){
     const rarRamp=1+(mu-1)*Math.min(1,(lv+4)/26), ELITE=1.12;
     const a=Math.round(d.atk*grow*rarRamp*ELITE*(1+w.teamAtk)), hp=Math.round(d.hp*grow*rarRamp*ELITE);
     allies.push({name:d.name.split(' ')[0],spec:champSpec(id),el:d.el,atk:a,hp,maxhp:hp,alive:true,status:null});});
-  // foe level tracks the toughest of: monster level, warden level, and SQUAD POWER —
-  // so foes always keep pace with how strong your champions actually are.
-  const region=(m.bx>=40)?4:(m.bx<=6?2:0);
-  const squadPow=S.squad.filter(Boolean).reduce((mx,id)=>{const h=S.heroes[id],d=champDef(id);return Math.max(mx,(h?h.lvl:1)+RAR[d.rar].stars*2);},0);
-  const base=Math.max(m.lvl, combatLevel()-1+region, Math.floor(squadPow*0.75));
+  const base=encounterLevel(m);
   const foes=[];
   // ~5 foes (3 vs 5). Bosses bring a stronger, larger pack.
   const cnt=isBoss?6:(m.elite?5:5);
@@ -2258,7 +2280,14 @@ function recordBestiary(m,defeated){
 function endBattle(win,fled){
   const m=battleData.mon, isBoss=battleData.isBoss;
   recordBestiary(m,win);
-  if(fled){blog('You slip away into the mist.');}
+  if(fled){blog('You slip away into the mist.');
+    // retreat a few tiles away from the foe + a short escape window, or it re-engages instantly
+    const mx=m.x, my=m.y, ddx=Math.sign(Math.round(player.px)-mx)||1, ddy=Math.sign(Math.round(player.py)-my)||1;
+    let placed=false;
+    for(let d=4;d>=1&&!placed;d--){ const nx=Math.round(player.px)+ddx*d, ny=Math.round(player.py)+ddy*d;
+      if(inb(nx,ny)&&walk[ny][nx]){ player.px=player.tx=nx;player.py=player.ty=ny;S.px=nx;S.py=ny;placed=true; } }
+    if(!placed){ const a=nearestWalkAdj(Math.round(player.px),Math.round(player.py)); if(a){player.px=player.tx=a[0];player.py=player.ty=a[1];S.px=a[0];S.py=a[1];} }
+    player.path=[];player.moving=false; fleeUntil=now+3000; }
   else if(win){
     const lv=battleData.eff||m.lvl;
     const rew={astral:(20+lv*8)*(isBoss?5:1),shard:(lv%3===0?2:0)+(isBoss?12:0)};
