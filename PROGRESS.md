@@ -268,3 +268,20 @@ User: "do 8 and 9 real quick, just send it." Focused cores, shipped together.
 
 ### Status
 - **All 12 Master Brief sessions have a shipped core**, start → ending. Remaining work is the documented *deferred depth* across sessions (world bosses, unique boss mechanics, full NPC + champion arcs, new skills Lore/Alchemy/Passage-Weaving, prestige/Warden Network, 120×110 map expansion, dynamic music) — all enhancements on a complete game.
+
+---
+
+## Visual Overhaul — Art Direction Pass — 2026-06-02
+
+Goal: lift perceived production quality toward *Stardew / Core Keeper / Eastward* — "ancient celestial fantasy, verdant bioluminescent ecosystem, cozy & hopeful." Mobile-first, no WebGL, 60fps held (measured **0.3–0.7 ms/frame**).
+
+- **Ground layer** (`drawTile`, baked into the cached tile buffer = ~free per frame): new 32-bit `thash(x,y)` drives non-repeating per-tile features — wildflowers (4-petal blooms + stem), moss clusters, pebble patches, fallen leaves, creeping roots, varied grass tufts, faint verdant sparkle, and a *subtle* per-tile base tint. Dapple positions jittered by hash so the tile grid never reads as a quilt.
+- **Vegetation** (`drawTree` now takes tile coords): deterministic **scale variation**, four kinds — sapling / medium / **ancient** (bigger, extra canopy) / rare **glowing** (bioluminescent, emits cool light at night via `isGlowTree` in `drawLighting`). Gentle per-tree **sway** (upper canopy moves most; trunk stays rooted). Softer cached shadows. Conifers scale/sway too.
+- **Ambient atmosphere** (`drawAmbient`, screen-space, ~26 wrapped motes, biome+time aware): dust motes, **spores** (lush), **fireflies** (lush, dusk/night), **drifting starlight / cosmic shimmer** (everywhere — ASTRARI's identity), **magical pollen** (warm gold, lush daytime). Cheap (fillRects + a few cached glows).
+- **Lighting / night**: moonlit blue-green night `tint` (not pitch), softened darkness coefficient, warm dawn / rose dusk, plus a faint cool **moonlight lift** for blue-green shadows. Glowing trees added as light sources.
+- **Characters** (`drawAvatar`): soft cached elliptical shadow, **blink cycle**, **rim light** on head/shoulder (hero/champ) for separation from busy ground, idle **breathing** bob when the warden stands still.
+- **Crystals** (`drawCrystal`): per-crystal **color palette** variation, stronger pulse, soft **ground glow pool**, rising **spark motes** at the pulse peak — true signature landmarks.
+- **UI overhaul** (`style.css` + `index.html`): "ancient celestial explorer" theme — refined palette (verdant/teal/gold/moonlit/celest vars + gold hairline). Resource chips re-framed with depth + inset highlight; **premium currency (astral shards)** gets a gilded/celestial-glow frame (`:has(#r-shard)`). Env box + warden bar gradiented. **Dock** → polished action bar: gilded top hairline, press glow-halo behind icons, glowing underline indicator, bouncier icon feedback. **Quest tracker** → fantasy-journal look (gold left border, ✦ bullet). **Modal panels** get a celestial top hairline + soft top radial glow.
+
+### Verified
+- Clean build (~180 KB), **no console errors**, `__bench` 0.3–0.7 ms/frame across meadow/mountain/night. Screenshotted day meadow (cohesive, no checkerboard), night (torch pool + fireflies + moonlit tint), Skills panel (celestial framing). All hooks (flee, champ reroute, encounterLevel) intact.

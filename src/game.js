@@ -303,11 +303,10 @@ function drawWeapon(g,s,dir,col,wt){
 function drawAvatar(g,cx,cy,s,spec,face,bob){
   bob=bob||0; face=face||'down';
   const dir=face;
-  // shadow
+  // soft, slightly elliptical shadow (cached sprite — cheap)
   g.save();
   g.translate(cx,cy);
-  g.fillStyle='rgba(0,0,0,.28)';
-  g.beginPath();g.ellipse(0,0,7*s,3*s,0,0,7);g.fill();
+  g.save();g.scale(1,0.42);drawGlow(g,0,0,'#05080a',10*s,0.5);g.restore();
   g.translate(0,-bob);
   if(spec.kind==='monster'){
     // spiky blob body — variant changes the silhouette
@@ -383,11 +382,19 @@ function drawAvatar(g,cx,cy,s,spec,face,bob){
   g.arc(0,-2.5*s,5.4*s,Math.PI*1.05,Math.PI*1.95);
   g.lineTo(4.6*s,-2.5*s);g.quadraticCurveTo(5*s,-6*s,0,-7.4*s);g.quadraticCurveTo(-5*s,-6*s,-4.6*s,-2.5*s);
   g.fill();
-  // face (eyes) by direction
+  // rim light on the head/shoulder so characters separate from busy ground
+  if(spec.kind==='hero'||spec.kind==='champ'){
+    g.strokeStyle='rgba(200,240,255,.4)';g.lineWidth=0.9*s;
+    g.beginPath();g.arc(0,-2*s,5.2*s,Math.PI*1.05,Math.PI*1.5);g.stroke();
+    g.strokeStyle='rgba(200,240,255,.22)';g.beginPath();g.moveTo(-6.6*s,5.4*s);g.lineTo(-6.6*s,11*s);g.stroke();
+  }
+  // face (eyes) by direction — with a slow blink cycle
+  const blink = ((now*0.001+ (cx%7)) % 3.4) < 0.12;
   if(dir!=='up'){
     g.fillStyle='#1a2030';
     let ex=dir==='left'?-2.4:dir==='right'?0.4:-1.6;
-    g.beginPath();g.arc((ex)*s,-2*s,0.9*s,0,7);g.arc((ex+3.2)*s,-2*s,0.9*s,0,7);g.fill();
+    if(blink){ g.fillRect((ex-0.4)*s,-2*s,1.6*s,0.5*s); g.fillRect((ex+2.8)*s,-2*s,1.6*s,0.5*s); }
+    else { g.beginPath();g.arc((ex)*s,-2*s,0.9*s,0,7);g.arc((ex+3.2)*s,-2*s,0.9*s,0,7);g.fill(); }
   }
   // element aura dot
   if(spec.el){ g.fillStyle=ELEM[spec.el].col; g.globalAlpha=.9;
@@ -416,6 +423,8 @@ const TCOL={
   [T_FOREST]:'#19432a',[T_MTN]:'#534d48',[T_PLAIN]:'#316a42',[T_DEEP]:'#12345d',
   [T_SNOW]:'#bccbde',[T_ICE]:'#84afce',[T_ASH]:'#302a27',[T_LAVA]:'#d8531f',[T_CRYST]:'#26214a'};
 function tileNoise(x,y){return ((x*73856093)^(y*19349663))&7;}
+// richer 32-bit per-tile hash → many independent feature bits, no visible repeats
+function thash(x,y){ let h=(x*374761393+y*668265263)|0; h=(h^(h>>>13))*1274126177; return (h^(h>>>16))>>>0; }
 function drawTile(x,y,px,py,g){
   g=g||ctx;
   const t=grid[y][x];
@@ -423,18 +432,43 @@ function drawTile(x,y,px,py,g){
   const n=tileNoise(x,y);
   g.fillStyle=col; g.fillRect(px,py,TILE+1,TILE+1);
   if(t===T_GRASS||t===T_FOREST||t===T_PLAIN){
-    // soft dappled light & shadow patches (organic, smooth) for depth
+    const h=thash(x,y);
+    // very subtle per-tile base tint (kept low so the tile grid never reads as a quilt)
+    g.fillStyle=shade(col,((h&7)-3)*0.9); g.fillRect(px,py,TILE+1,TILE+1);
+    // soft dappled light & shadow patches — positions jittered by hash to dissolve the grid
+    const jx=(h>>3&7)-3, jy=(h>>6&7)-3, jx2=(h>>9&7)-3, jy2=(h>>12&7)-3;
     g.fillStyle=shade(col,-13);
-    if(n%2===0){g.beginPath();g.ellipse(px+9,py+18,6.5,4,0,0,7);g.fill();}
-    if(n%3===0){g.beginPath();g.ellipse(px+21,py+8,5,3.4,0,0,7);g.fill();}
+    if(n%2===0){g.beginPath();g.ellipse(px+9+jx,py+18+jy,6.5,4,0,0,7);g.fill();}
+    if(n%3===0){g.beginPath();g.ellipse(px+21+jx2,py+8+jy2,5,3.4,0,0,7);g.fill();}
     g.fillStyle=shade(col,12);
-    if(n%2===1){g.beginPath();g.ellipse(px+12,py+9,5.5,3.2,0,0,7);g.fill();}
-    if(n%4===0){g.beginPath();g.ellipse(px+20,py+19,4.5,3,0,0,7);g.fill();}
-    // a few grass blades
-    g.fillStyle=shade(col,n>3?20:-2);
-    if(n%3===0){g.fillRect(px+6,py+8,1.5,5);g.fillRect(px+9,py+7,1.5,6);}
-    if(n%4===0){g.fillRect(px+18,py+15,1.5,5);g.fillRect(px+21,py+14,1.5,6);}
-    if(n%5===0){g.fillStyle='rgba(200,255,215,.06)';g.beginPath();g.arc(px+14,py+21,1.3,0,7);g.fill();}
+    if(n%2===1){g.beginPath();g.ellipse(px+12+jx2,py+9+jy,5.5,3.2,0,0,7);g.fill();}
+    if(n%4===0){g.beginPath();g.ellipse(px+20+jx,py+19+jy2,4.5,3,0,0,7);g.fill();}
+    // moss clusters
+    if((h&15)===0){ g.fillStyle=shade(col,-24);
+      g.beginPath();g.arc(px+7+(h>>4&6),py+20,3.2,0,7);g.arc(px+11+(h>>7&5),py+22,2.4,0,7);g.arc(px+9+(h>>9&4),py+18,2,0,7);g.fill();
+      g.fillStyle=shade(col,-4);g.beginPath();g.arc(px+8+(h>>4&6),py+19,1.5,0,7);g.fill(); }
+    // pebble patch
+    if((h&15)===5){ g.fillStyle='#82807a';
+      g.beginPath();g.arc(px+18,py+16,1.7,0,7);g.arc(px+22,py+18,1.2,0,7);g.arc(px+20,py+13,1,0,7);g.fill();
+      g.fillStyle='#a09d95';g.beginPath();g.arc(px+17.5,py+15.4,0.7,0,7);g.fill(); }
+    // fallen leaves
+    if((h&31)===9){ g.fillStyle=['#c87a3a','#b8923a','#a8552e','#9c6a35'][h>>5&3];
+      g.save();g.translate(px+9+(h>>6&12),py+9+(h>>9&12));g.rotate((h>>3&7));g.beginPath();g.ellipse(0,0,2.1,1,0,0,7);g.fill();g.restore(); }
+    // creeping roots
+    if((h&63)===17){ g.strokeStyle=shade(col,-32);g.lineWidth=1.1;g.lineCap='round';
+      g.beginPath();g.moveTo(px+3,py+25);g.quadraticCurveTo(px+13,py+20,px+22,py+25);g.moveTo(px+13,py+22);g.lineTo(px+15,py+28);g.stroke(); }
+    // grass blade tufts (varied height + lean)
+    g.fillStyle=shade(col,(h&1)?22:-3);
+    if(n%3===0){g.fillRect(px+6,py+8,1.4,5);g.fillRect(px+8.6,py+7,1.4,6);g.fillRect(px+11,py+9,1.2,4);}
+    if(n%4===0){g.fillRect(px+18,py+15,1.4,5);g.fillRect(px+20.6,py+14,1.4,6);}
+    // wildflowers — small 4-petal blooms with a stem
+    if((h&15)===3){ const fc=['#f3ecaa','#ecbcf2','#ffd2da','#cfe8ff','#ffe6a6'][h>>4&4];
+      const bx=px+8+(h>>7&13), by2=py+9+(h>>10&9);
+      g.strokeStyle=shade(col,16);g.lineWidth=0.9;g.beginPath();g.moveTo(bx,by2+1.6);g.lineTo(bx,by2+6);g.stroke();
+      g.fillStyle=fc;for(let k=0;k<4;k++){const a=k*1.5708+0.4;g.beginPath();g.arc(bx+Math.cos(a)*1.9,by2+Math.sin(a)*1.9,1.15,0,7);g.fill();}
+      g.fillStyle='#ffd479';g.beginPath();g.arc(bx,by2,0.95,0,7);g.fill(); }
+    // faint sparkle of verdant light
+    if((h&63)===40){g.fillStyle='rgba(200,255,220,.10)';g.beginPath();g.arc(px+14,py+12,1.4,0,7);g.fill();}
   }else if(t===T_WATER||t===T_DEEP){
     const shimmer=Math.sin(now*0.002 + x*0.6 + y*0.4)*0.5+0.5;
     g.fillStyle=`rgba(255,255,255,${0.05+shimmer*0.06})`;
@@ -499,24 +533,49 @@ function drawTileLayer(){
 // biome-aware foliage palettes
 const TREE_PAL={ forest:['#23713e','#2c8a4c','#37a05a'], plains:['#2c7a44','#35924f','#42a85c'],
   meadow:['#2c7a44','#37994f','#46b562'], tundra:['#2a5a48','#356b54','#dfe9f2'] };
-function drawTree(px,py,biome){
+// is this tree a rare glowing (bioluminescent) one? deterministic per tile
+function isGlowTree(tx,ty){ return thash(tx,ty)%41===0; }
+function drawTree(px,py,biome,tx,ty){
   const pal=TREE_PAL[biome]||TREE_PAL.forest, snow=biome==='tundra';
-  ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(px+TILE/2,py+TILE-3,9,3.5,0,0,7);ctx.fill();
-  ctx.fillStyle=snow?'#6a5238':'#5a3b22';ctx.fillRect(px+TILE/2-2.5,py+TILE-16,5,14);
-  ctx.fillStyle='rgba(0,0,0,.12)';ctx.fillRect(px+TILE/2+0.5,py+TILE-16,2,14);
-  if(snow){ // conifer triangles
-    for(let i=0;i<3;i++){ ctx.fillStyle=pal[i===2?2:i];ctx.beginPath();
-      ctx.moveTo(px+TILE/2-9+i*1.5,py+TILE-10-i*5);ctx.lineTo(px+TILE/2+9-i*1.5,py+TILE-10-i*5);ctx.lineTo(px+TILE/2,py+TILE-22-i*5);ctx.closePath();ctx.fill(); }
-    ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.moveTo(px+TILE/2-4,py+TILE-13);ctx.lineTo(px+TILE/2+4,py+TILE-13);ctx.lineTo(px+TILE/2,py+TILE-18);ctx.closePath();ctx.fill();
-  } else {
-    const cx=px+TILE/2;
-    // layered canopy blobs for a rounder, fuller crown
-    const blobs=[[-5,-15,8],[5,-15,8],[0,-19,9.5],[-3,-24,7],[4,-23,6.5],[0,-27,5.5]];
-    for(let i=0;i<blobs.length;i++){ const lvl=Math.min(2,Math.floor(i/2));
-      ctx.fillStyle=pal[lvl];ctx.beginPath();ctx.arc(cx+blobs[i][0],py+TILE+blobs[i][1],blobs[i][2],0,7);ctx.fill(); }
-    // rim light on upper-left, shadow on lower-right
-    ctx.fillStyle='rgba(190,255,210,.4)';ctx.beginPath();ctx.arc(cx-4,py+TILE-27,2.2,0,7);ctx.arc(cx-6,py+TILE-22,1.6,0,7);ctx.fill();
-    ctx.fillStyle='rgba(0,0,0,.14)';ctx.beginPath();ctx.arc(cx+5,py+TILE-15,4.5,0,7);ctx.fill();
+  const h=thash(tx|0,ty|0);
+  const sc=0.82+((h>>4&7)/7)*0.36;                                  // size variation
+  const kind=(h%41===0)?'glow':((h&7)===0?'ancient':((h&7)===1?'sapling':'medium'));
+  const cx=px+TILE/2, footY=py+TILE-3;
+  const sway=Math.sin(now*0.0011+tx*0.7)*(kind==='sapling'?1.0:2.1); // gentle canopy sway
+  // soft shadow
+  ctx.fillStyle='rgba(0,0,0,.20)';ctx.beginPath();ctx.ellipse(cx,footY,9*sc,3.4*sc,0,0,7);ctx.fill();
+  if(snow){ // conifer
+    const th=14*sc;
+    ctx.fillStyle='#6a5238';ctx.fillRect(cx-2.4*sc,footY-th+2,4.8*sc,th);
+    for(let i=0;i<3;i++){ ctx.fillStyle=pal[i===2?2:i];const yy=footY-7-i*5*sc,w=(9-i*1.5)*sc,sx=sway*(i*0.34);
+      ctx.beginPath();ctx.moveTo(cx-w+sx,yy);ctx.lineTo(cx+w+sx,yy);ctx.lineTo(cx+sx,yy-12*sc);ctx.closePath();ctx.fill(); }
+    ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.moveTo(cx-4*sc,footY-10);ctx.lineTo(cx+4*sc,footY-10);ctx.lineTo(cx,footY-16*sc);ctx.closePath();ctx.fill();
+    return;
+  }
+  if(kind==='sapling'){
+    ctx.fillStyle='#5a3b22';ctx.fillRect(cx-1.4,footY-8,2.8,8);
+    ctx.fillStyle=pal[1];ctx.beginPath();ctx.arc(cx-2.4+sway,footY-10,3.6,0,7);ctx.arc(cx+2.4+sway,footY-10,3.6,0,7);ctx.arc(cx+sway,footY-13,4,0,7);ctx.fill();
+    ctx.fillStyle=pal[2];ctx.beginPath();ctx.arc(cx-1+sway,footY-13,1.8,0,7);ctx.fill();
+    return;
+  }
+  // trunk (rooted — does not sway)
+  const th=16*sc;
+  ctx.fillStyle='#5a3b22';ctx.fillRect(cx-2.5*sc,footY-th+3,5*sc,th);
+  ctx.fillStyle='rgba(0,0,0,.13)';ctx.fillRect(cx+0.4*sc,footY-th+3,2*sc,th);
+  const top=footY-th+3;
+  let blobs=[[-5,-2,8],[5,-2,8],[0,-6,9.5],[-3,-11,7],[4,-10,6.5],[0,-14,5.5]];
+  if(kind==='ancient')blobs=[[-7,-1,9],[7,-1,9],[0,-5,11],[-5,-11,8.5],[5,-10,8.5],[0,-15,7.5],[-2,-19,5.5],[3,-18,5]];
+  for(let i=0;i<blobs.length;i++){ const lvl=Math.min(2,Math.floor(i/2));
+    const sx=sway*((-blobs[i][1])/15);                              // upper canopy sways more
+    ctx.fillStyle=pal[lvl];ctx.beginPath();ctx.arc(cx+blobs[i][0]*sc+sx,top+blobs[i][1]*sc,blobs[i][2]*sc,0,7);ctx.fill(); }
+  // rim light upper-left, shadow lower-right
+  ctx.fillStyle='rgba(190,255,210,.4)';ctx.beginPath();ctx.arc(cx-4*sc+sway,top-12*sc,2.2*sc,0,7);ctx.arc(cx-6*sc+sway,top-8*sc,1.6*sc,0,7);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,.14)';ctx.beginPath();ctx.arc(cx+5*sc,top-1*sc,4.5*sc,0,7);ctx.fill();
+  if(kind==='glow'){                                                // rare bioluminescent tree
+    const gp=0.55+0.45*Math.sin(now*0.003+tx);
+    drawGlow(ctx,cx+sway,top-7*sc,'#7ad0ff',13*sc*gp,0.45);
+    ctx.fillStyle='#cbeeff';
+    for(let k=0;k<5;k++){const a=now*0.0009+k*1.3;ctx.beginPath();ctx.arc(cx+Math.cos(a)*6*sc+sway,top-7*sc+Math.sin(a*1.4)*5*sc,1.1,0,7);ctx.fill();}
   }
 }
 function drawRock(px,py,biome){
@@ -544,15 +603,21 @@ function drawRock(px,py,biome){
   ctx.beginPath();ctx.arc(px+13,py+16,1.7,0,7);ctx.arc(px+19,py+19,1.3,0,7);ctx.arc(px+10,py+12,1,0,7);ctx.fill();
   ctx.fillStyle='rgba(255,255,255,'+(0.4+tw*0.5)+')';ctx.beginPath();ctx.arc(px+12.4,py+15.4,0.7,0,7);ctx.fill();
 }
-function drawCrystal(px,py){
+const CRYSTAL_PALS=[['#7a5cff','#5ad0ff','#c08bff'],['#5ad0ff','#7affd8','#5cf0ff'],
+  ['#ff7ad0','#c08bff','#ff9ad8'],['#7affb0','#5ad0ff','#aaffce']];
+function drawCrystal(px,py,tx,ty){
+  const h=thash(tx|0,ty|0), hue=CRYSTAL_PALS[h%4];
+  const g=Math.sin(now*0.004+tx)*0.5+0.5;
   ctx.fillStyle='rgba(60,30,120,.3)';ctx.beginPath();ctx.ellipse(px+TILE/2,py+TILE-4,9,3.5,0,0,7);ctx.fill();
-  const g=Math.sin(now*0.004+px)*0.5+0.5;
-  const cols=['#7a5cff','#5ad0ff','#c08bff'];
+  // soft ground glow pool — signature landmark
+  drawGlow(ctx,px+TILE/2,py+TILE-8,hue[1],12+g*6,0.4);
   for(let i=0;i<3;i++){ ctx.save();ctx.translate(px+TILE/2+(i-1)*5,py+TILE-5);
-    drawGlow(ctx,0,-7-i,cols[i],5+g*3,0.85);
-    ctx.fillStyle=cols[i];
+    drawGlow(ctx,0,-7-i,hue[i],5+g*3.5,0.9);
+    ctx.fillStyle=hue[i];
     ctx.beginPath();ctx.moveTo(-3,0);ctx.lineTo(3,0);ctx.lineTo(1.5,-13-i*2);ctx.lineTo(-1.5,-13-i*2);ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillRect(-1,-11-i*2,1.4,9);ctx.restore(); }
+    ctx.fillStyle='rgba(255,255,255,'+(0.4+g*0.45)+')';ctx.fillRect(-1,-11-i*2,1.4,9);ctx.restore(); }
+  // rising spark motes at the pulse peak
+  if(g>0.86&&Math.random()<0.22) burstMotes(px+cam.x+TILE/2,py+cam.y+TILE-12,hue[1],1);
 }
 function drawPlant(px,py,biome){
   let leaf='#2c8a52',leaf2='#37a463',leafD='#1d6038',bloom='#b388ff';
@@ -675,9 +740,9 @@ function dayTint(){ // returns overlay rgba based on clock
   if(t<0.22||t>0.80) dark=0.55;
   else if(t<0.30) dark=lerp(0.55,0,(t-0.22)/0.08);
   else if(t>0.72) dark=lerp(0,0.55,(t-0.72)/0.08);
-  let tint='10,16,40';
-  if(t>=0.22&&t<0.32) tint='80,50,40';      // dawn warm
-  else if(t>=0.70&&t<0.80) tint='90,40,60';  // dusk
+  let tint='10,24,36';                        // moonlit blue-green (cool, not pitch)
+  if(t>=0.22&&t<0.32) tint='74,52,42';        // dawn warm amber
+  else if(t>=0.70&&t<0.80) tint='86,42,58';   // dusk rose
   return {dark, tint};
 }
 function timeLabel(){const t=S.clock;
@@ -724,7 +789,7 @@ function drawLighting(){
   const lg=lgx;
   lg.globalCompositeOperation='source-over';
   lg.clearRect(0,0,VW,VH);
-  lg.fillStyle=`rgba(${dt.tint},${Math.min(0.9,dt.dark*1.55)})`;   // deeper, moodier dark
+  lg.fillStyle=`rgba(${dt.tint},${Math.min(0.86,dt.dark*1.42)})`;  // moonlit, atmospheric — not pitch-black
   lg.fillRect(0,0,VW,VH);
   // punch out pools of light
   lg.globalCompositeOperation='destination-out';
@@ -744,7 +809,10 @@ function drawLighting(){
     punchLight(lg,cx,cy,30*cg,0.6); tints.push([cx,cy,34,'130,170,255',0.36]); }
     else if(n.type==='bonfire'){ const cx=n.x*TILE-cam.x+TILE/2, cy=n.y*TILE-cam.y+TILE/2;
       if(cx<-60||cy<-60||cx>VW+60||cy>VH+60)return; const bf=1+Math.sin(now*0.013+n.x)*0.12;
-      punchLight(lg,cx,cy,52*bf,0.8); tints.push([cx,cy,58,'255,150,60',0.5*bf]); } });
+      punchLight(lg,cx,cy,52*bf,0.8); tints.push([cx,cy,58,'255,150,60',0.5*bf]); }
+    else if(n.type==='tree'&&isGlowTree(n.x,n.y)){ const cx=n.x*TILE-cam.x+TILE/2, cy=n.y*TILE-cam.y+TILE-16;
+      if(cx<-60||cy<-60||cx>VW+60||cy>VH+60)return; const tg=1+Math.sin(now*0.003+n.x)*0.14;
+      punchLight(lg,cx,cy,30*tg,0.5); tints.push([cx,cy,36,'120,200,255',0.32*tg]); } });
   monsters.forEach(m=>{ if(m.boss&&m.alive){ const cx=m.x*TILE-cam.x+TILE/2, cy=m.y*TILE-cam.y+TILE/2;
     if(cx<-90||cy<-90||cx>VW+90||cy>VH+90)return; punchLight(lg,cx,cy,46,0.5); tints.push([cx,cy,50,'255,70,70',0.36]); } });
   // colored warmth inside the pools
@@ -753,7 +821,52 @@ function drawLighting(){
     g.addColorStop(0,`rgba(${col},${a})`);g.addColorStop(1,`rgba(${col},0)`); lg.fillStyle=g; lg.fillRect(cx-r,cy-r,r*2,r*2); }
   lg.globalCompositeOperation='source-over';
   ctx.drawImage(lightCanvas,0,0);
+  // faint cool moonlight lift → soft blue-green shadows, moonlit ambience
+  if(dt.dark>0.3){ ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle=`rgba(74,128,150,${(0.05*dt.dark).toFixed(3)})`; ctx.fillRect(0,0,VW,VH); ctx.restore(); }
 }
+/* ---- AMBIENT ATMOSPHERE ---- screen-space motes: dust, spores, fireflies,
+   drifting starlight (ASTRARI's celestial identity) and magical pollen.
+   ~26 particles total, wrap around the viewport — cheap and never noisy. */
+let amb=[], ambW=0, ambH=0, ambT=0, ambLast=0;
+function initAmbient(){ amb=[]; for(let i=0;i<26;i++) amb.push({
+  x:Math.random()*VW, y:Math.random()*VH, vx:(Math.random()-0.5)*7, vy:(Math.random()-0.5)*5,
+  ph:Math.random()*7, sz:0.6+Math.random()*1.5, sp:0.5+Math.random()*0.9, layer:i%5 }); ambW=VW; ambH=VH; }
+function drawAmbient(){
+  if(!amb.length||VW!==ambW||VH!==ambH) initAmbient();
+  const dt=Math.min(0.05,(now-ambLast)/1000)||0.016; ambLast=now;
+  ambT+=dt;
+  const dark=dayTint().dark;
+  const bcx=Math.floor((cam.x+VW/2)/TILE), bcy=Math.floor((cam.y+VH/2)/TILE);
+  const biome=(inb(bcx,bcy)&&biomeMap[bcy])?biomeMap[bcy][bcx]:'meadow';
+  const lush=biome==='meadow'||biome==='forest'||biome==='plains'||biome==='lake'||biome==='crystal';
+  for(const p of amb){
+    p.x+=p.vx*dt + Math.sin(ambT*0.55+p.ph)*4*dt;
+    p.y+=p.vy*dt - (p.layer===4?7*dt:0);
+    if(p.x<-6)p.x=VW+6; else if(p.x>VW+6)p.x=-6;
+    if(p.y<-6)p.y=VH+6; else if(p.y>VH+6)p.y=-6;
+    const tw=0.5+0.5*Math.sin(ambT*p.sp*3+p.ph);
+    if(p.layer===2){ // fireflies — lush biomes at dusk/night
+      if(dark>0.22&&lush){ const a=tw*Math.min(1,(dark-0.18)*3.2);
+        drawGlow(ctx,p.x,p.y,'#c8ff8a',5*p.sz,a*0.55);
+        ctx.globalAlpha=a;ctx.fillStyle='#ecffba';ctx.fillRect(p.x-0.8,p.y-0.8,1.7,1.7); }
+    }else if(p.layer===3){ // drifting starlight / cosmic shimmer — everywhere, celestial
+      const a=(0.16+dark*0.55)*tw; ctx.globalAlpha=a;
+      ctx.fillStyle= tw>0.7?'#eaf4ff':'#bcd4ff'; const s=p.sz*(tw>0.85?1.5:1);
+      ctx.fillRect(p.x-s/2,p.y-s/2,s,s);
+      if(tw>0.9){ctx.globalAlpha=a*0.6;drawGlow(ctx,p.x,p.y,'#cfe2ff',4*p.sz,0.5);}
+    }else if(p.layer===4){ // magical pollen — warm gold, lush & lit
+      if(lush&&dark<0.5){ const a=0.10+tw*0.14; ctx.globalAlpha=a;
+        ctx.fillStyle='#ffe6a0'; ctx.fillRect(p.x-p.sz/2,p.y-p.sz/2,p.sz,p.sz); }
+    }else{ // dust motes / spores — soft, omnipresent, very subtle
+      const spore=p.layer===1&&lush; const a=(spore?0.13:0.08)*(0.5+tw*0.6)*(1-dark*0.5);
+      ctx.globalAlpha=a; ctx.fillStyle=spore?'#d6f5dc':'#dfe7f5';
+      ctx.fillRect(p.x-p.sz/2,p.y-p.sz/2,p.sz,p.sz);
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
 /* ---- SCREEN EFFECTS ---- vignette, per-biome color grade, screen shake ---- */
 let vignSprite=null;
 function drawVignette(){
@@ -904,8 +1017,8 @@ function render(){
   const draws=[];
   nodes.forEach(n=>{ if(n.depleted||n.type==='fish'||n.type==='ice'||!vis(n.x,n.y))return;
     draws.push({y:n.y, fn:()=>{const px=n.x*TILE-cam.x,py=n.y*TILE-cam.y;
-      if(n.type==='tree')drawTree(px,py,n.biome); else if(n.type==='rock')drawRock(px,py,n.biome);
-      else if(n.type==='crystal')drawCrystal(px,py); else if(n.type==='tablet')drawTablet(px,py,n); else if(n.type==='bonfire')drawBonfire(px,py,n); else drawPlant(px,py,n.biome);}}); });
+      if(n.type==='tree')drawTree(px,py,n.biome,n.x,n.y); else if(n.type==='rock')drawRock(px,py,n.biome);
+      else if(n.type==='crystal')drawCrystal(px,py,n.x,n.y); else if(n.type==='tablet')drawTablet(px,py,n); else if(n.type==='bonfire')drawBonfire(px,py,n); else drawPlant(px,py,n.biome);}}); });
   buildings.forEach(b=>{ if(vis(b.x,b.y)||vis(b.x+b.w,b.y+b.h))draws.push({y:b.y+b.h-1, fn:()=>drawBuilding(b)}); });
   npcs.forEach(n=>{ if(vis(n.bx,n.by))draws.push({y:n.by, fn:()=>drawAvatar(ctx,n.bx*TILE-cam.x+TILE/2,n.by*TILE-cam.y+TILE-2,1,{kind:'npc',skin:n.skin,cloak:n.cloak,hair:'#2a2030',weapon:false},n.face,0)}); });
   monsters.forEach(m=>{ if(!m.alive||!vis(m.x,m.y))return;
@@ -919,7 +1032,7 @@ function render(){
         ctx.fillText('★ '+m.eliteName+' Lv'+encounterLevel(m), cx2, m.y*TILE-cam.y-9); }
       else { ctx.fillStyle='rgba(255,90,122,.9)';ctx.font='8px sans-serif';ctx.textAlign='center';
         ctx.fillText('Lv'+encounterLevel(m), cx2, m.y*TILE-cam.y+2); } }}); });
-  draws.push({y:player.py, fn:()=>{ const pcx=player.px*TILE-cam.x+TILE/2, pcy=player.py*TILE-cam.y+TILE-2, bob=player.moving?player.bob:0;
+  draws.push({y:player.py, fn:()=>{ const pcx=player.px*TILE-cam.x+TILE/2, pcy=player.py*TILE-cam.y+TILE-2, bob=player.moving?player.bob:Math.sin(now*0.0023)*0.8;
     drawAvatar(ctx,pcx,pcy,1.05,wardenSpec(),player.face,bob);
     if(dayTint().dark>0.22) drawTorch(ctx,pcx+(player.face==='left'?-8:8),pcy-16-bob,player.face); }});
   if(caelun&&caelun.active&&vis(caelun.x,caelun.y))draws.push({y:caelun.y, fn:()=>{ const cx=caelun.x*TILE-cam.x+TILE/2, cy=caelun.y*TILE-cam.y+TILE-2;
@@ -938,6 +1051,7 @@ function render(){
   drawLighting();
   drawWeatherOverlay();
   drawParticles(ctx, cam.x, cam.y);
+  drawAmbient();
   ctx.restore();
   drawBiomeGrade();
   drawVignette();
