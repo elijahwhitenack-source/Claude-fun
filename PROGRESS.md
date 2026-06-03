@@ -326,3 +326,12 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ### Verified
 - Clean build, no console errors, `__bench` ~0.46 ms at the lake/tundra/meadow tri-border. Screenshot confirms soft dithered snow↔grass / ice↔snow / water transitions.
+
+### Phase 2 — Vegetation & depth — Completed
+- **Animated, clustered grass cover (`drawGrassWind`/`drawBladeTuft`):** per-frame foxtail tufts (1–3 bending blades + seed heads) drawn over the baked ground on lush grass tiles. Density is **clustered by `vegNoise`** (groves/clearings — sparse tiles stay bare), and every blade bends with the **global wind field** so whole fields ripple together. ~0.4 ms added; still sub-ms.
+- **Foreground tall-grass depth cue:** when the warden stands in a lush grass tile, blades are drawn *over* the feet after the depth sort (walk-into-grass, Zelda/Stardew style).
+- **Directional sun shadows (`sunDir`/`dirShadow`):** character, tree and prop shadows now **offset + stretch with the sun** — long & raking at dawn/dusk, short & straight at noon, short & soft at night — driven by `S.clock`.
+- **Parallax / atmospheric perspective (item 11):** *intentionally reinterpreted.* A scrolling-horizon parallax doesn't fit a pure top-down follow camera; environmental depth is instead delivered via foreground grass + Phase-0 overhead occlusion + directional shadows (how top-down RPGs actually do depth).
+
+### Verified
+- Clean build, no console errors, `__bench` **~0.8 ms/frame** in the lush meadow (grass pass included) — still ~5% of budget. Noon meadow shows clustered rippling grass; occlusion + shadows confirmed.

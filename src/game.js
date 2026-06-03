@@ -202,8 +202,9 @@ function genProps(){
 const PROP_LIGHT={lantern:1,shrine:1,gflower:1,marker:1};
 function drawProp(px,py,kind,gx,gy){
   const cx=px+TILE/2, by=py+TILE-3, h=thash(gx,gy);
-  // soft shadow for everything
-  ctx.fillStyle='rgba(0,0,0,.18)';ctx.beginPath();ctx.ellipse(cx,by,6,2.4,0,0,7);ctx.fill();
+  // soft directional shadow for everything
+  { const sd=sunDir();ctx.fillStyle=`rgba(5,8,10,${(0.16*(sd.a/0.34)).toFixed(2)})`;
+    ctx.beginPath();ctx.ellipse(cx+sd.ox*0.6,by,6*sd.sx,2.4,0,0,7);ctx.fill(); }
   if(kind==='signpost'){
     ctx.fillStyle='#6a4f33';ctx.fillRect(cx-1.4,by-15,2.8,15);
     ctx.fillStyle='#8a6a44';ctx.fillRect(cx-9,by-15,16,7);ctx.strokeStyle='#5a4128';ctx.lineWidth=1;ctx.strokeRect(cx-9,by-15,16,7);
@@ -395,13 +396,22 @@ function drawWeapon(g,s,dir,col,wt){
   }
   g.restore();
 }
+// Sun direction from the clock: shadow offset (px) + horizontal stretch + darkness.
+// Long & raking at dawn/dusk, short straight at noon, short soft at night.
+function sunDir(){ const t=S.clock;
+  if(t<=0.2||t>=0.8) return {ox:1.5,sx:1,a:0.42};
+  const horiz=((t-0.2)/0.6-0.5)*2;                 // -1 dawn (sun E, shadow W) .. +1 dusk
+  return {ox:horiz*8, sx:1+Math.abs(horiz)*0.8, a:0.32+Math.abs(horiz)*0.06}; }
+function dirShadow(g,r,alpha){ const sd=sunDir();
+  g.save(); g.translate(sd.ox*(r/12),0); g.scale(sd.sx,0.42);
+  drawGlow(g,0,0,'#05080a',r,alpha*(sd.a/0.34)); g.restore(); }
 function drawAvatar(g,cx,cy,s,spec,face,bob){
   bob=bob||0; face=face||'down';
   const dir=face;
-  // soft, slightly elliptical shadow (cached sprite — cheap)
+  // soft directional shadow (offset/stretched by the sun; cached sprite — cheap)
   g.save();
   g.translate(cx,cy);
-  g.save();g.scale(1,0.42);drawGlow(g,0,0,'#05080a',10*s,0.5);g.restore();
+  dirShadow(g,10*s,0.5);
   g.translate(0,-bob);
   if(spec.kind==='monster'){
     // spiky blob body — variant changes the silhouette
@@ -723,6 +733,31 @@ function drawTileLayer(){
     const a=+k.slice(0,c), b=+k.slice(c+1);
     if(a<cx0-2||a>cx1+2||b<cy0-2||b>cy1+2) chunkCache.delete(k); } }
 }
+// vegetation density field (clustered groves/clearings) — separate phase from macroNoise
+function vegNoise(x,y){ return macroNoise(x+101,y+57); }
+// one wind-blown grass tuft (foxtail-style, 1–3 bending blades + seed heads)
+function drawBladeTuft(px,py,h,blades,sway,col){
+  ctx.lineCap='round';
+  for(let b=0;b<blades;b++){
+    const bx=px+6+((h>>(b*4))&15), by=py+26-((h>>(b*3))&3), len=8+((h>>(b*2))&4);
+    const bend=sway*(2.0+b*0.4), tipx=bx+bend, tipy=by-len;
+    ctx.strokeStyle=col;ctx.lineWidth=1.3;
+    ctx.beginPath();ctx.moveTo(bx,by);ctx.quadraticCurveTo(bx+bend*0.5,by-len*0.6,tipx,tipy);ctx.stroke();
+    if((h>>(b+5)&1)){ ctx.fillStyle=shade(col,18);ctx.beginPath();ctx.ellipse(tipx,tipy-1,1.1,2,bend*0.06,0,7);ctx.fill(); } // seed head
+  }
+}
+// per-frame animated grass cover — sparse, clustered by veg-noise, swayed by the wind field
+function drawGrassWind(){
+  const x0=Math.floor(cam.x/TILE), y0=Math.floor(cam.y/TILE);
+  const cols=Math.ceil(VW/TILE)+2, rows=Math.ceil(VH/TILE)+2;
+  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
+    const tx=x0+i, ty=y0+j; if(tx<0||ty<0||tx>=MW||ty>=MH)continue;
+    const t=grid[ty][tx]; if(t!==T_GRASS&&t!==T_PLAIN&&t!==T_FOREST)continue;
+    const d=vegNoise(tx,ty); if(d<0.44)continue;                 // clearings stay bare
+    const h=thash(tx,ty), blades=d>0.74?3:(d>0.57?2:1);
+    drawBladeTuft(tx*TILE-cam.x, ty*TILE-cam.y, h, blades, windAt(tx+ty*0.3), t===T_FOREST?'#327f47':'#42a058');
+  }
+}
 // biome-aware foliage palettes
 const TREE_PAL={ forest:['#23713e','#2c8a4c','#37a05a'], plains:['#2c7a44','#35924f','#42a85c'],
   meadow:['#2c7a44','#37994f','#46b562'], tundra:['#2a5a48','#356b54','#dfe9f2'] };
@@ -741,8 +776,9 @@ function drawTree(px,py,biome,tx,ty){
   const kind=(h%41===0)?'glow':((h&7)===0?'ancient':((h&7)===1?'sapling':'medium'));
   const cx=px+TILE/2, footY=py+TILE-3;
   const sway=windAt(tx)*(kind==='sapling'?0.8:1.6);          // canopy sway from the global wind field
-  // soft shadow
-  ctx.fillStyle='rgba(0,0,0,.20)';ctx.beginPath();ctx.ellipse(cx,footY,9*sc,3.4*sc,0,0,7);ctx.fill();
+  // soft directional shadow (rakes with the sun)
+  { const sd=sunDir();ctx.fillStyle=`rgba(5,8,10,${(0.18*(sd.a/0.34)).toFixed(2)})`;
+    ctx.beginPath();ctx.ellipse(cx+sd.ox*0.8,footY,9*sc*sd.sx,3.4*sc,0,0,7);ctx.fill(); }
   if(snow){ // conifer
     const th=14*sc;
     ctx.fillStyle='#6a5238';ctx.fillRect(cx-2.4*sc,footY-th+2,4.8*sc,th);
@@ -1325,6 +1361,8 @@ function render(){
   const x1=Math.min(MW,x0+Math.ceil(VW/TILE)+2), y1=Math.min(MH,y0+Math.ceil(VH/TILE)+2);
   // visibility cull window (tiles)
   const vis=(ex,ey)=>ex>=x0-2&&ex<=x1+1&&ey>=y0-2&&ey<=y1+1;
+  // animated, clustered grass cover (ground layer — drawn under sprites)
+  drawGrassWind();
   // fishing / ice spots (on water, drawn before depth-sort objects)
   nodes.forEach(n=>{ if((n.type==='fish'||n.type==='ice')&&!n.depleted&&vis(n.x,n.y))drawFishSpot(n.x*TILE-cam.x,n.y*TILE-cam.y,n.type==='ice'); });
 
@@ -1359,6 +1397,11 @@ function render(){
     drawAvatar(ctx,cx,cy,1.05,CAELUN_SPEC,caelun.face,Math.sin(now*0.004)*1.2);
     ctx.fillStyle='rgba(179,136,255,.95)';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.fillText('✦ Caelun', cx, caelun.y*TILE-cam.y-8); }});
   draws.sort((a,b)=>a.y-b.y).forEach(d=>d.fn());
+  // foreground tall-grass over the warden's feet when standing in lush grass (depth cue)
+  { const ptx=Math.round(player.px), pty=Math.round(player.py);
+    if(inb(ptx,pty)){ const t=grid[pty][ptx];
+      if((t===T_GRASS||t===T_PLAIN||t===T_FOREST)&&vegNoise(ptx,pty)>0.5)
+        drawBladeTuft(player.px*TILE-cam.x, player.py*TILE-cam.y, thash(ptx,pty)^0x9e37, 3, windAt(ptx), '#4cb064'); } }
 
   // destination marker
   if(player.moving&&player.path.length){const t=player.path[player.path.length-1];
