@@ -14,7 +14,7 @@ import { TILE, ELEM, RAR, POOL, champDef, GEAR, RECIPES, SKILLS, RESINFO, WEATHE
    STATE
    =================================================================== */
 const DEF={
-  res:{astral:80,shard:30,ore:0,wood:0,herb:0,fish:0,dust:0,bio:0},
+  res:{astral:80,shard:0,ore:0,wood:0,herb:0,fish:0,dust:0,bio:0},   // first-run welcome grants the 90 shards (=> exactly 90 to start)
   heroes:{}, squad:[null,null,null], pity:0,
   skills:{}, gear:[], equip:{weapon:null,armor:null,relic:null},
   px:39, py:43, combatLvl:1, combatXp:0, mapVer:0, bestiary:{mobs:{},gear:{},biomes:{},bosses:{}},
@@ -1354,7 +1354,7 @@ function panelBag(){
   modal(`<h2>Warden's Pack</h2>
     <div class="card"><h3>Equipped <span class="chip">⚔${w.atk} ❤${w.hp}${w.teamAtk?' · +'+(w.teamAtk*100).toFixed(0)+'% team atk':''}</span></h3>${slots}
       ${(w.sets&&w.sets.length)?w.sets.map(s=>`<div style="font-size:11px;color:var(--gold);margin-top:4px">⟡ <b>${s.name}</b> — ${s.desc}</div>`).join(''):''}</div>
-    <div class="card"><h3>Owned Gear</h3><div id="ownedgear">${ownedGearHTML()}</div></div>
+    <div class="card"><h3>Owned Gear <button class="btn ghost sm" style="float:right;padding:3px 10px" onclick="panelSell()">💰 Sell</button></h3><div id="ownedgear">${ownedGearHTML()}</div></div>
     <div class="card"><h3>Materials</h3>${mats.map(m=>`<span class="pill">${RESINFO[m]} ${fmt(S.res[m])} ${m}</span>`).join('')}</div>`);
   // draw equipped slot avatars
   $$('#mbox canvas[data-gear]').forEach(c=>{const slot=c.dataset.gear,id=S.equip[slot];const cx=c.getContext('2d');cx.clearRect(0,0,40,40);
@@ -1879,13 +1879,50 @@ function turnInQuest(q,n){ if(S.qs[q.id]&&S.qs[q.id].s===QS.COMPLETE){ grantQues
 function npcServices(n){ const role=n.role;
   if(role==='market'||role==='forge'||role==='shrine'){
     modal(`<h2>${n.name}</h2><div class="muted" style="margin:-6px 0 10px">${(NPC_INFO[role]&&NPC_INFO[role].title)||''}</div>
-      ${role==='market'?`<button class="btn gold" onclick="sellMats()">Sell 10 Ore + 10 Wood → 8 ✦</button>`:''}
+      ${role==='market'?`<button class="btn gold" onclick="closeModal();panelSell()">💰 Sell Goods</button>`:''}
       ${role==='forge'?`<button class="btn" onclick="closeModal();panelCraft()">Open the Star-Forge ⚒</button>`:''}
       ${role==='shrine'?`<button class="btn violet" onclick="closeModal();panelCraft()">Approach the Shrine ✦</button>`:''}`);
   }
 }
 function sellMats(){if(S.res.ore<10||S.res.wood<10)return toast('Need 10 ore & 10 wood');
   S.res.ore-=10;S.res.wood-=10;S.res.shard+=8;save();updateHUD();toast('Sold for 8 ✦');panelBag&&closeModal();}
+/* ---- SELL system (sell only; buying stays drops/crafting) ---- */
+function gearVal(g){ return [0,25,70,180,450][g.tier]||25; }
+function gearShard(g){ return g.tier>=4?30:g.tier>=3?10:0; }
+function matVal(k){ return ({ore:1,wood:1,herb:1,fish:1,dust:3,bio:3})[k]||1; }
+function panelSell(){
+  const equipped=new Set(Object.values(S.equip).filter(Boolean));
+  const counts={}; S.gear.forEach(id=>counts[id]=(counts[id]||0)+1);
+  let spareA=0,spareS=0;
+  const gearRows=Object.keys(counts).map(id=>{ const g=GEAR[id], eq=equipped.has(id), spare=counts[id]-(eq?1:0); if(spare<=0)return '';
+    spareA+=gearVal(g)*spare; spareS+=gearShard(g)*spare;
+    return `<div class="gearslot"><canvas class="ginv" data-g="${id}" width="40" height="40"></canvas>
+      <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${RAR_T(g.tier)}">${g.name}${spare>1?' ×'+spare:''}${eq?' <span class="muted" style="font-size:10px">(1 kept)</span>':''}</div>
+      <div class="muted" style="font-size:11px">◈${gearVal(g)}${gearShard(g)?' ✦'+gearShard(g):''} each</div></div>
+      <button class="btn gold sm" onclick="sellGear('${id}')">Sell</button></div>`; }).filter(Boolean).join('');
+  const mats=['ore','wood','herb','fish','dust','bio'];
+  const matRows=mats.filter(k=>Math.floor(S.res[k])>0).map(k=>{ const n=Math.floor(S.res[k]),v=matVal(k);
+    return `<div class="gearslot"><div style="flex:1"><b>${RESINFO[k]||''} ${k}</b> <span class="chip">${fmt(n)}</span>
+      <div class="muted" style="font-size:11px">◈${v} each → ◈${fmt(n*v)} total</div></div>
+      <button class="btn sm" onclick="sellMat('${k}')">Sell all</button></div>`; }).join('');
+  modal(`<h2>Trader Quill</h2><div class="muted" style="margin:-6px 0 10px">“I only buy, Warden — keep your shimmer moving. Crafting and the wilds will arm you.”</div>
+    <div class="card"><h3>Spare Gear</h3>${gearRows||'<div class="muted">No spare gear — equipped pieces are always kept.</div>'}
+      ${gearRows?`<button class="btn ghost sm" style="width:100%;margin-top:6px" onclick="sellAllGear()">Sell ALL spare → ◈${fmt(spareA)}${spareS?' ✦'+spareS:''}</button>`:''}</div>
+    <div class="card"><h3>Materials</h3>${matRows||'<div class="muted">No materials to sell.</div>'}</div>`);
+  drawInvCanvases&&drawInvCanvases();
+}
+function sellGear(id){ const g=GEAR[id], eq=Object.values(S.equip).includes(id);
+  if(S.gear.filter(x=>x===id).length-(eq?1:0)<=0)return;
+  const idx=S.gear.indexOf(id); if(idx<0)return; S.gear.splice(idx,1);
+  S.res.astral+=gearVal(g); S.res.shard+=gearShard(g); save();updateHUD(); sfx('ui');
+  toast('Sold '+g.name+' → ◈'+gearVal(g)+(gearShard(g)?' ✦'+gearShard(g):'')); panelSell(); }
+function sellMat(k){ const n=Math.floor(S.res[k]); if(n<=0)return; S.res[k]-=n; S.res.astral+=n*matVal(k);
+  save();updateHUD(); sfx('ui'); toast('Sold '+n+' '+k+' → ◈'+fmt(n*matVal(k))); panelSell(); }
+function sellAllGear(){ const equipped=new Set(Object.values(S.equip).filter(Boolean));
+  let astral=0,shard=0; const keep={},kept=[];
+  S.gear.forEach(id=>{ if(equipped.has(id)&&!keep[id]){ keep[id]=1; kept.push(id); } else { astral+=gearVal(GEAR[id]); shard+=gearShard(GEAR[id]); } });
+  if(!astral&&!shard)return; S.gear=kept; S.res.astral+=astral; S.res.shard+=shard; save();updateHUD(); sfx('craft');
+  toast('Sold all spare gear → ◈'+fmt(astral)+(shard?' ✦'+shard:'')); panelSell(); }
 function openBuilding(b){ enterInterior(b); }
 
 /* ===================================================================
@@ -2078,12 +2115,17 @@ function startEncounter(m){
   const w=wardenStats();
   const isBoss=!!m.boss;
   const allies=[{name:'You (Warden)',spec:wardenSpec(),el:'light',atk:Math.round(w.atk*(1+w.teamAtk)),hp:w.hp,maxhp:w.hp,alive:true,warden:true,status:null}];
-  // STRONG team of 3 — champions get an "elite" boost since the squad is small
-  S.squad.filter(Boolean).forEach(id=>{const d=champDef(id),h=S.heroes[id],lv=h.lvl,grow=1+(lv-1)*0.09,mu=RAR[d.rar].mult,ELITE=1.35;
-    allies.push({name:d.name.split(' ')[0],spec:champSpec(id),el:d.el,atk:Math.round(d.atk*grow*mu*ELITE*(1+w.teamAtk)),hp:Math.round(d.hp*grow*mu*ELITE),maxhp:Math.round(d.hp*grow*mu*ELITE),alive:true,status:null});});
-  // foe group scales with monster level AND the warden's level (they keep pace), plus region danger
+  // STRONG team of 3 — but a champion's RARITY power ramps in with level (a Lv1
+  // legendary shouldn't be 3.6x), so early game is honest and investment matters.
+  S.squad.filter(Boolean).forEach(id=>{const d=champDef(id),h=S.heroes[id],lv=h.lvl,grow=1+(lv-1)*0.10,mu=RAR[d.rar].mult;
+    const rarRamp=1+(mu-1)*Math.min(1,(lv+4)/26), ELITE=1.12;
+    const a=Math.round(d.atk*grow*rarRamp*ELITE*(1+w.teamAtk)), hp=Math.round(d.hp*grow*rarRamp*ELITE);
+    allies.push({name:d.name.split(' ')[0],spec:champSpec(id),el:d.el,atk:a,hp,maxhp:hp,alive:true,status:null});});
+  // foe level tracks the toughest of: monster level, warden level, and SQUAD POWER —
+  // so foes always keep pace with how strong your champions actually are.
   const region=(m.bx>=40)?4:(m.bx<=6?2:0);
-  const base=Math.max(m.lvl, combatLevel()-2+region);
+  const squadPow=S.squad.filter(Boolean).reduce((mx,id)=>{const h=S.heroes[id],d=champDef(id);return Math.max(mx,(h?h.lvl:1)+RAR[d.rar].stars*2);},0);
+  const base=Math.max(m.lvl, combatLevel()-1+region, Math.floor(squadPow*0.75));
   const foes=[];
   // ~5 foes (3 vs 5). Bosses bring a stronger, larger pack.
   const cnt=isBoss?6:(m.elite?5:5);
@@ -2092,10 +2134,10 @@ function startEncounter(m){
     const lv=Math.max(1,base-(lead?0:1+(i%3)));
     const eliteMul=m.elite&&lead?1.4:1;
     const bossMul=isBoss&&lead?2.0:1;
-    const hp=Math.round((80+lv*50)*(lead?1.5:1)*bossMul*eliteMul);
+    const hp=Math.round((100+lv*60)*(lead?1.6:1)*bossMul*eliteMul);
     foes.push({name:lead?leadName:'Hollow Spawn',
       spec:{kind:'monster',cloak:ELEM[el].col,glow:(isBoss||m.elite)&&lead?'#ffd24a':'#ff5a7a',vidx:lead?(m.vidx||0):0,elite:m.elite&&lead},el,
-      atk:Math.round((11+lv*6.5)*(lead?1.3:1)*(isBoss&&lead?1.5:1)*eliteMul),hp,maxhp:hp,alive:true,status:null,lead});}
+      atk:Math.round((13+lv*7.6)*(lead?1.3:1)*(isBoss&&lead?1.5:1)*eliteMul),hp,maxhp:hp,alive:true,status:null,lead});}
   // ---- champion synergies (Session 9) ----
   const champs=S.squad.filter(Boolean).map(id=>champDef(id));
   let synAtk=1, synHp=1, synMsg='';
@@ -2381,7 +2423,7 @@ function fmtT(s){s=Math.floor(s);const h=s/3600|0,m=s%3600/60|0;return(h?h+'h ':
 Object.assign(window, {
   closeModal, cancelFishing, champDetail, claimReward, craft, doSummon, equip, unequip,
   hardReset, levelHero, panelCodex, panelChamps, panelQuests, panelSummon, sellMats, toggleAudio, toggleSquad, save,
-  finishBattle, dlgChoose, panelLore,
+  finishBattle, dlgChoose, panelLore, panelSell, sellGear, sellMat, sellAllGear,
 });
 
 if(!S.qs)S.qs={}; if(!S.flags)S.flags={};
