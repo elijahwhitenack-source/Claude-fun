@@ -586,9 +586,8 @@ function drawTile(x,y,px,py,g){
       g.beginPath();g.moveTo(wx,wb);g.lineTo(wx-2,wb-7);g.moveTo(wx,wb);g.lineTo(wx+2,wb-6);g.stroke();
     }
   }else if(t===T_WATER||t===T_DEEP){
-    const shimmer=Math.sin(now*0.002 + x*0.6 + y*0.4)*0.5+0.5;
-    g.fillStyle=`rgba(255,255,255,${0.05+shimmer*0.06})`;
-    g.fillRect(px+4,py+ (n*3)%(TILE-6) ,TILE-10,2);
+    // static base only — animated shimmer is drawn per-frame in drawTileAnimCell()
+    g.fillStyle=shade(col,-6);g.fillRect(px,py+TILE-5,TILE+1,5);
   }else if(t===T_MTN){
     g.fillStyle=shade(col,-16);g.beginPath();g.ellipse(px+8,py+10,6,4.5,0,0,7);g.fill();
     g.beginPath();g.ellipse(px+21,py+19,6,4.5,0,0,7);g.fill();
@@ -624,62 +623,104 @@ function drawTile(x,y,px,py,g){
     g.fillStyle=shade(col,-12);if(n%3===0)g.fillRect(px+5,py+18,5,3);if(n%4===0)g.fillRect(px+18,py+8,4,3);
     g.fillStyle='rgba(255,255,255,.7)';g.beginPath();g.arc(px+8+n*2,py+10,0.9,0,7);g.arc(px+20,py+22,0.8,0,7);g.fill();
   }else if(t===T_ICE){
-    const sh=Math.sin(now*0.0015+x+y)*0.5+0.5;
-    g.fillStyle=`rgba(220,240,255,${0.12+sh*0.12})`;g.fillRect(px,py,TILE+1,TILE+1);
+    g.fillStyle='rgba(222,240,255,.18)';g.fillRect(px,py,TILE+1,TILE+1);
     g.strokeStyle='rgba(255,255,255,.3)';g.lineWidth=1;g.beginPath();
     g.moveTo(px+6,py+4);g.lineTo(px+14,py+16);g.lineTo(px+10,py+26);g.stroke();
   }else if(t===T_ASH){
     g.fillStyle=shade(col,n>3?10:-8);if(n%3===0)g.fillRect(px+6,py+10,7,4);
-    // glowing embers
-    const e=Math.sin(now*0.004+x*1.3+y)*0.5+0.5;
-    g.fillStyle=`rgba(255,${90+e*80|0},40,${0.25+e*0.4})`;
-    if(n%4===0){g.beginPath();g.arc(px+12,py+18,1.4,0,7);g.fill();}
-    if(n%5===0){g.beginPath();g.arc(px+22,py+9,1.1,0,7);g.fill();}
+    // (glowing embers drawn per-frame in drawTileAnimCell)
   }else if(t===T_LAVA){
-    const e=Math.sin(now*0.003+x+y*0.7)*0.5+0.5;
-    g.fillStyle=`rgb(${200+e*55|0},${70+e*60|0},20)`;g.fillRect(px,py,TILE+1,TILE+1);
-    g.strokeStyle=`rgba(255,${200+e*55|0},120,${0.4+e*0.4})`;g.lineWidth=1.5;
+    g.fillStyle='#c2491a';g.fillRect(px,py,TILE+1,TILE+1);                 // static crust base
+    g.strokeStyle='rgba(50,18,8,.55)';g.lineWidth=1.5;                      // static dark fissures
     g.beginPath();g.moveTo(px+4,py+8);g.lineTo(px+16,py+12);g.lineTo(px+10,py+24);g.lineTo(px+24,py+20);g.stroke();
   }else if(t===T_CRYST){
     g.fillStyle=shade(col,n>3?14:-8);if(n%3===0)g.fillRect(px+6,py+14,6,4);
-    const gg=Math.sin(now*0.003+x*2+y)*0.5+0.5;
-    g.fillStyle=`rgba(150,120,255,${0.18+gg*0.25})`;
-    if(n%4===0){g.beginPath();g.arc(px+13,py+12,1.3,0,7);g.fill();}
-    if(n%5===0){g.fillStyle=`rgba(120,220,255,${0.18+gg*0.25})`;g.beginPath();g.arc(px+22,py+20,1,0,7);g.fill();}
+    // (animated sparkle drawn per-frame in drawTileAnimCell)
   }
 }
-// Cached tile layer: rebuild the offscreen buffer only when the camera crosses a
-// tile boundary or every ~90ms (keeps water/lava/ice animation alive), then blit.
-let tileBuf=null, tileBufCtx=null, tbCols=0, tbRows=0, tbX0=-1, tbY0=-1, tbBuilt=0;
+// per-frame overlay for the handful of animated tile types (water/ice/ash/lava/crystal)
+function drawTileAnimCell(t,x,y,px,py){
+  const n=tileNoise(x,y);
+  if(t===T_WATER||t===T_DEEP){
+    const shimmer=Math.sin(now*0.002+x*0.6+y*0.4)*0.5+0.5;
+    ctx.fillStyle=`rgba(255,255,255,${0.05+shimmer*0.06})`;
+    ctx.fillRect(px+4,py+(n*3)%(TILE-6),TILE-10,2);
+  }else if(t===T_ICE){
+    const sh=Math.sin(now*0.0015+x+y)*0.5+0.5;
+    ctx.fillStyle=`rgba(232,246,255,${0.05+sh*0.10})`;ctx.fillRect(px,py,TILE+1,TILE+1);
+  }else if(t===T_ASH){
+    const e=Math.sin(now*0.004+x*1.3+y)*0.5+0.5;
+    ctx.fillStyle=`rgba(255,${90+e*80|0},40,${0.25+e*0.4})`;
+    if(n%4===0){ctx.beginPath();ctx.arc(px+12,py+18,1.4,0,7);ctx.fill();}
+    if(n%5===0){ctx.beginPath();ctx.arc(px+22,py+9,1.1,0,7);ctx.fill();}
+  }else if(t===T_LAVA){
+    const e=Math.sin(now*0.003+x+y*0.7)*0.5+0.5;
+    ctx.fillStyle=`rgba(${200+e*55|0},${70+e*60|0},20,${0.55+e*0.4})`;ctx.fillRect(px,py,TILE+1,TILE+1);
+    ctx.strokeStyle=`rgba(255,${200+e*55|0},120,${0.4+e*0.4})`;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(px+4,py+8);ctx.lineTo(px+16,py+12);ctx.lineTo(px+10,py+24);ctx.lineTo(px+24,py+20);ctx.stroke();
+  }else if(t===T_CRYST){
+    const gg=Math.sin(now*0.003+x*2+y)*0.5+0.5;
+    ctx.fillStyle=`rgba(150,120,255,${0.18+gg*0.25})`;
+    if(n%4===0){ctx.beginPath();ctx.arc(px+13,py+12,1.3,0,7);ctx.fill();}
+    if(n%5===0){ctx.fillStyle=`rgba(120,220,255,${0.18+gg*0.25})`;ctx.beginPath();ctx.arc(px+22,py+20,1,0,7);ctx.fill();}
+  }
+}
+// Chunked STATIC ground bake: each CHxCH-tile chunk is rendered once to its own
+// offscreen canvas and cached; scrolling only bakes newly-revealed chunks (no more
+// full-viewport rebuilds). Animated tiles (water/lava/ice/ash/crystal) are drawn as
+// a thin per-frame overlay on top via drawTileAnimCell().
+const CH=8;                                   // tiles per chunk side (8*32 = 256px)
+let chunkCache=new Map();                      // "cx,cy" -> {cv, used}
+function bakeChunk(cx,cy){
+  const cv=document.createElement('canvas'); cv.width=CH*TILE; cv.height=CH*TILE;
+  const g=cv.getContext('2d'); g.fillStyle='#06203a'; g.fillRect(0,0,cv.width,cv.height);
+  for(let j=0;j<CH;j++)for(let i=0;i<CH;i++){
+    const tx=cx*CH+i, ty=cy*CH+j; if(tx<0||ty<0||tx>=MW||ty>=MH)continue;
+    drawTile(tx,ty,i*TILE,j*TILE,g);
+  }
+  return cv;
+}
+function getChunk(cx,cy){ const k=cx+','+cy; let e=chunkCache.get(k);
+  if(!e){ e={cv:bakeChunk(cx,cy)}; chunkCache.set(k,e); } e.used=now; return e.cv; }
+function invalidateChunks(){ chunkCache.clear(); }
 function drawTileLayer(){
-  const cols=Math.ceil(VW/TILE)+2, rows=Math.ceil(VH/TILE)+2;
-  if(!tileBuf||tbCols!==cols||tbRows!==rows){
-    tileBuf=document.createElement('canvas'); tileBuf.width=cols*TILE; tileBuf.height=rows*TILE;
-    tileBufCtx=tileBuf.getContext('2d'); tbCols=cols; tbRows=rows; tbX0=-1;
-  }
   const x0=Math.floor(cam.x/TILE), y0=Math.floor(cam.y/TILE);
-  if(x0!==tbX0||y0!==tbY0||now-tbBuilt>90){
-    const g=tileBufCtx; g.fillStyle='#06203a'; g.fillRect(0,0,tileBuf.width,tileBuf.height);
-    for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
-      const tx=x0+i, ty=y0+j; if(tx<0||ty<0||tx>=MW||ty>=MH)continue;
-      drawTile(tx,ty,i*TILE,j*TILE,g);
-    }
-    tbX0=x0; tbY0=y0; tbBuilt=now;
+  const cols=Math.ceil(VW/TILE)+2, rows=Math.ceil(VH/TILE)+2;
+  const cx0=Math.floor(x0/CH), cx1=Math.floor((x0+cols)/CH);
+  const cy0=Math.floor(y0/CH), cy1=Math.floor((y0+rows)/CH);
+  for(let cy=cy0;cy<=cy1;cy++)for(let cx=cx0;cx<=cx1;cx++){
+    ctx.drawImage(getChunk(cx,cy), cx*CH*TILE-cam.x, cy*CH*TILE-cam.y);
   }
-  ctx.drawImage(tileBuf, x0*TILE-cam.x, y0*TILE-cam.y);
+  // animated liquids/embers — visible animated tiles only
+  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
+    const tx=x0+i, ty=y0+j; if(tx<0||ty<0||tx>=MW||ty>=MH)continue;
+    const t=grid[ty][tx];
+    if(t===T_WATER||t===T_DEEP||t===T_ICE||t===T_ASH||t===T_LAVA||t===T_CRYST)
+      drawTileAnimCell(t,tx,ty,tx*TILE-cam.x,ty*TILE-cam.y);
+  }
+  // bound memory: drop chunks more than 2 chunks outside the view
+  if(chunkCache.size>40){ for(const k of chunkCache.keys()){ const c=k.indexOf(',');
+    const a=+k.slice(0,c), b=+k.slice(c+1);
+    if(a<cx0-2||a>cx1+2||b<cy0-2||b>cy1+2) chunkCache.delete(k); } }
 }
 // biome-aware foliage palettes
 const TREE_PAL={ forest:['#23713e','#2c8a4c','#37a05a'], plains:['#2c7a44','#35924f','#42a85c'],
   meadow:['#2c7a44','#37994f','#46b562'], tundra:['#2a5a48','#356b54','#dfe9f2'] };
 // is this tree a rare glowing (bioluminescent) one? deterministic per tile
 function isGlowTree(tx,ty){ return thash(tx,ty)%41===0; }
+// GLOBAL WIND FIELD — one source of motion so all foliage/banners breathe together.
+// Returns a horizontal push in ~[-1.4,1.4], scaled by a slow gust envelope.
+function windAt(tx){
+  const gust=0.65+0.5*Math.sin(now*0.00035);                 // slow gust 0.15..1.15
+  return (Math.sin(now*0.0011+tx*0.6)+0.4*Math.sin(now*0.0023+tx*0.27))*gust;
+}
 function drawTree(px,py,biome,tx,ty){
   const pal=TREE_PAL[biome]||TREE_PAL.forest, snow=biome==='tundra';
   const h=thash(tx|0,ty|0);
   const sc=0.82+((h>>4&7)/7)*0.36;                                  // size variation
   const kind=(h%41===0)?'glow':((h&7)===0?'ancient':((h&7)===1?'sapling':'medium'));
   const cx=px+TILE/2, footY=py+TILE-3;
-  const sway=Math.sin(now*0.0011+tx*0.7)*(kind==='sapling'?1.0:2.1); // gentle canopy sway
+  const sway=windAt(tx)*(kind==='sapling'?0.8:1.6);          // canopy sway from the global wind field
   // soft shadow
   ctx.fillStyle='rgba(0,0,0,.20)';ctx.beginPath();ctx.ellipse(cx,footY,9*sc,3.4*sc,0,0,7);ctx.fill();
   if(snow){ // conifer
@@ -1248,6 +1289,12 @@ window.__spawnFx=(type,frames)=>{ const wx=player.px*TILE+TILE/2, wy=player.py*T
   if(type==='ring')burstRing(wx,wy,'#ffd479',20,110); else if(type==='motes')burstMotes(wx,wy,'#9be8ff',8); else burstSpray(wx,wy,'#9bd66a',16);
   for(let k=0;k<(frames||5);k++){ now=performance.now(); updateParticles(0.03); render(); } return 'fx '+type; };
 window.__time=(t)=>{ S.clock=t; now=performance.now(); render(); return 'clock='+t+' ('+timeLabel()+')'; };
+// Overhead occlusion (L6): a tall occluder drawn *after* the player (base below the
+// player on screen) fades to translucent when the warden stands behind it, so the
+// avatar is never lost under a canopy / roof. Returns an alpha multiplier.
+function occludeAlpha(sx,sy,spanX,topReach){
+  if(sy>player.py && sy-player.py<topReach && Math.abs(sx-player.px)<spanX) return 0.5;
+  return 1; }
 function render(){
   if(interior){ renderInterior(); drawFade(); return; }
   updateCam();
@@ -1265,10 +1312,13 @@ function render(){
   const draws=[];
   nodes.forEach(n=>{ if(n.depleted||n.type==='fish'||n.type==='ice'||!vis(n.x,n.y))return;
     draws.push({y:n.y, fn:()=>{const px=n.x*TILE-cam.x,py=n.y*TILE-cam.y;
-      if(n.type==='tree')drawTree(px,py,n.biome,n.x,n.y); else if(n.type==='rock')drawRock(px,py,n.biome);
+      if(n.type==='tree'){ const a=occludeAlpha(n.x,n.y,1.2,2.6); if(a<1)ctx.globalAlpha=a; drawTree(px,py,n.biome,n.x,n.y); if(a<1)ctx.globalAlpha=1; }
+      else if(n.type==='rock')drawRock(px,py,n.biome);
       else if(n.type==='crystal')drawCrystal(px,py,n.x,n.y); else if(n.type==='tablet')drawTablet(px,py,n); else if(n.type==='bonfire')drawBonfire(px,py,n); else drawPlant(px,py,n.biome);}}); });
   props.forEach(p=>{ if(!vis(p.x,p.y))return; draws.push({y:p.y, fn:()=>drawProp(p.x*TILE-cam.x,p.y*TILE-cam.y,p.kind,p.x,p.y)}); });
-  buildings.forEach(b=>{ if(vis(b.x,b.y)||vis(b.x+b.w,b.y+b.h))draws.push({y:b.y+b.h-1, fn:()=>drawBuilding(b)}); });
+  buildings.forEach(b=>{ if(vis(b.x,b.y)||vis(b.x+b.w,b.y+b.h))draws.push({y:b.y+b.h-1, fn:()=>{
+    const behind=player.px>=b.x-0.5&&player.px<=b.x+b.w-0.5&&player.py<=b.y+b.h-1&&player.py>=b.y-2.4;
+    if(behind)ctx.globalAlpha=0.5; drawBuilding(b); if(behind)ctx.globalAlpha=1; }}); });
   npcs.forEach(n=>{ if(vis(n.bx,n.by))draws.push({y:n.by, fn:()=>drawAvatar(ctx,n.bx*TILE-cam.x+TILE/2,n.by*TILE-cam.y+TILE-2,1,{kind:'npc',skin:n.skin,cloak:n.cloak,hair:'#2a2030',weapon:false},n.face,0)}); });
   monsters.forEach(m=>{ if(!m.alive||!vis(m.x,m.y))return;
     draws.push({y:m.y, fn:()=>{ const sc=m.boss?1.7:(m.elite?1.32:1);

@@ -302,3 +302,19 @@ Second pass per the 10-priority brief — goal was **depth/atmosphere/identity/c
 
 ### Verified
 - Clean build (~185 KB), **no console errors**, `__bench` **0.2–0.5 ms/frame** across town/meadow/night. Screenshotted: town (storytelling buildings), day meadow (landmarks + props, organic edges, no noise), night (light pockets from lanterns/flowers + torch), Skills panel (journal framing). No new systems — purely visual.
+
+---
+
+## Visual Architecture Plan + Phase 0 — 2026-06-02
+
+Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **Canvas 2D world + DOM UI hybrid**, *no* WebGL/Pixi/Phaser/React migration (renderer is sub-ms; the gap to "commercial 16-bit" is the art language, not the engine). 6-phase roadmap (0 foundations → 1 terrain identity → 2 veg/depth → 3 lighting → 4 sprites/combat → 5 UI → 6 optional authored tilesets).
+
+### Phase 0 — Pipeline foundations — Completed (core)
+- **Chunked static tile bake:** replaced the single full-viewport tile buffer (which rebuilt *every ~90 ms* to animate water) with an **8×8-tile chunk cache** (`bakeChunk`/`getChunk`/`chunkCache`). Scrolling only bakes newly-revealed chunks; memory bounded by evicting chunks >2 outside view. `drawTile` is now the pure **static** bake.
+- **Animated-liquid thin pass:** `drawTileAnimCell()` draws only water shimmer / ice sheen / ash embers / lava glow+fissures / crystal sparkle, per-frame over visible animated tiles. Static crust/base for those baked into the chunk. Verified parity in meadow/tundra(ice)/ember(lava) — no seams.
+- **Overhead-canopy occlusion (L6):** `occludeAlpha()` fades trees (and buildings) to 0.5 when the warden stands behind them, so the avatar is never lost under a canopy/roof.
+- **Global wind field:** `windAt(tx)` (base + slow gust envelope) is now the single motion source; tree/canopy/conifer/sapling sway samples it (banners/grass to follow in Phase 2). Cohesive "the world breathes together."
+- **Deferred:** fixed-timestep + interpolation (lowest visual ROI, loop already sub-ms; revisit if high-refresh jitter shows).
+
+### Verified
+- Clean build, **no console errors**, `__bench` **0.2–0.7 ms/frame** (meadow 0.37, lake 0.72, ember). Chunk cache shows no seams across grass/ice/lava transitions; occlusion confirmed behind the forge.
