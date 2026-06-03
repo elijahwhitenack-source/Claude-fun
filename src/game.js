@@ -520,6 +520,34 @@ const TCOL={
 function tileNoise(x,y){return ((x*73856093)^(y*19349663))&7;}
 // richer 32-bit per-tile hash → many independent feature bits, no visible repeats
 function thash(x,y){ let h=(x*374761393+y*668265263)|0; h=(h^(h>>>13))*1274126177; return (h^(h>>>16))>>>0; }
+// smooth low-frequency value noise (0..1) for region-scale terrain variation
+function macroNoise(x,y){ const s=6, gx=Math.floor(x/s), gy=Math.floor(y/s), fx=x/s-gx, fy=y/s-gy;
+  const r=(ix,iy)=>(thash(ix,iy)&255)/255;
+  const a=r(gx,gy),b=r(gx+1,gy),c=r(gx,gy+1),d=r(gx+1,gy+1);
+  const sx=fx*fx*(3-2*fx), sy=fy*fy*(3-2*fy);
+  return (a*(1-sx)+b*sx)*(1-sy)+(c*(1-sx)+d*sx)*sy; }
+// ordered 4×4 Bayer matrix (0..15) for dithered terrain transitions (the 16-bit look)
+const BAYER=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+// which materials count as "the same" for blending (no dither within a group)
+const BLEND_GROUP={ [T_GRASS]:1,[T_FOREST]:1,[T_PLAIN]:1, [T_PATH]:2, [T_SAND]:3, [T_WATER]:4,[T_DEEP]:4,
+  [T_SNOW]:5, [T_ICE]:6, [T_ASH]:7, [T_LAVA]:8, [T_MTN]:9, [T_CRYST]:10 };
+// Dither a neighbouring material's colour into this tile's edges, denser at the seam,
+// so biome borders blend instead of butting. Baked into the static chunk (one-time cost).
+function blendEdges(x,y,px,py,g,t){
+  const grp=BLEND_GROUP[t]||0; if(!grp)return;
+  let any=false;
+  for(const[dx,dy]of [[0,1],[0,-1],[1,0],[-1,0]]){
+    const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=MW||ny>=MH)continue;
+    const nt=grid[ny][nx]; if((BLEND_GROUP[nt]||0)===grp)continue;
+    if(!any){ g.save(); g.globalAlpha=0.72; any=true; }   // soften so the dither tints, not slams
+    g.fillStyle=TCOL[nt]; const horiz=dx===0;
+    for(let d=0;d<3;d++){ const dens=[12,6,2][d];
+      for(let s=0;s<8;s++){ if(BAYER[((s+x)&3)+(((d+y)&3)*4)]>=dens)continue;
+        if(horiz){ g.fillRect(px+s*4, dy>0?py+TILE-4-d*4:py+d*4, 4,4); }
+        else      { g.fillRect(dx>0?px+TILE-4-d*4:px+d*4, py+s*4, 4,4); } } }
+  }
+  if(any)g.restore();
+}
 function drawTile(x,y,px,py,g){
   g=g||ctx;
   const t=grid[y][x];
@@ -529,8 +557,8 @@ function drawTile(x,y,px,py,g){
   g.fillStyle=col; g.fillRect(px,py,TILE+1,TILE+1);
   if(t===T_GRASS||t===T_FOREST||t===T_PLAIN){
     const h=thash(x,y);
-    // very subtle per-tile base tint (kept low so the tile grid never reads as a quilt)
-    g.fillStyle=shade(col,((h&7)-3)*0.9); g.fillRect(px,py,TILE+1,TILE+1);
+    // per-tile micro-tint + smooth macro value-noise → region-scale variation (drier/lusher patches)
+    g.fillStyle=shade(col,((h&7)-3)*0.9 + (macroNoise(x,y)-0.5)*9); g.fillRect(px,py,TILE+1,TILE+1);
     // soft dappled light & shadow patches — positions jittered by hash to dissolve the grid
     const jx=(h>>3&7)-3, jy=(h>>6&7)-3, jx2=(h>>9&7)-3, jy2=(h>>12&7)-3;
     g.fillStyle=shade(col,-13);
@@ -572,19 +600,10 @@ function drawTile(x,y,px,py,g){
       g.beginPath();g.moveTo(dx0,dy0+6);g.lineTo(dx0-1.5+lean,dy0-1);g.moveTo(dx0+2,dy0+6);g.lineTo(dx0+2.5+lean,dy0);g.moveTo(dx0+4,dy0+6);g.lineTo(dx0+3.5+lean,dy0+1);g.stroke(); }
     // faint sparkle of verdant light
     if((h&63)===40){g.fillStyle='rgba(200,255,220,.10)';g.beginPath();g.arc(px+14,py+12,1.4,0,7);g.fill();}
-    // ORGANIC EDGES where grass meets road/sand: dirt fringe + weeds + pebbles
+    // a weed poking over a hard edge (kept; the colour blend itself is handled by blendEdges)
     const isHard=tt=>tt===T_PATH||tt===T_SAND;
-    if(isHard(nbr(0,1))||isHard(nbr(0,-1))||isHard(nbr(1,0))||isHard(nbr(-1,0))){
-      g.fillStyle='rgba(92,80,58,.40)';
-      if(isHard(nbr(0,1))){ for(let i=0;i<4;i++){g.beginPath();g.arc(px+4+i*7+(h>>i&3),py+TILE-2,1.6+(h>>i&1),0,7);g.fill();} }
-      if(isHard(nbr(0,-1))){ for(let i=0;i<4;i++){g.beginPath();g.arc(px+4+i*7+(h>>i&3),py+1,1.5,0,7);g.fill();} }
-      if(isHard(nbr(1,0))){ for(let i=0;i<4;i++){g.beginPath();g.arc(px+TILE-2,py+4+i*7,1.5,0,7);g.fill();} }
-      if(isHard(nbr(-1,0))){ for(let i=0;i<4;i++){g.beginPath();g.arc(px+1,py+4+i*7,1.5,0,7);g.fill();} }
-      // a weed poking out over the edge
-      g.strokeStyle=shade(col,18);g.lineWidth=1.2;
-      const wx=px+6+(h>>4&18), wb=isHard(nbr(0,1))?py+TILE-2:py+TILE-6;
-      g.beginPath();g.moveTo(wx,wb);g.lineTo(wx-2,wb-7);g.moveTo(wx,wb);g.lineTo(wx+2,wb-6);g.stroke();
-    }
+    if(isHard(nbr(0,1))){ g.strokeStyle=shade(col,18);g.lineWidth=1.2;const wx=px+6+(h>>4&18);
+      g.beginPath();g.moveTo(wx,py+TILE-2);g.lineTo(wx-2,py+TILE-9);g.moveTo(wx,py+TILE-2);g.lineTo(wx+2,py+TILE-8);g.stroke(); }
   }else if(t===T_WATER||t===T_DEEP){
     // static base only — animated shimmer is drawn per-frame in drawTileAnimCell()
     g.fillStyle=shade(col,-6);g.fillRect(px,py+TILE-5,TILE+1,5);
@@ -637,6 +656,7 @@ function drawTile(x,y,px,py,g){
     g.fillStyle=shade(col,n>3?14:-8);if(n%3===0)g.fillRect(px+6,py+14,6,4);
     // (animated sparkle drawn per-frame in drawTileAnimCell)
   }
+  blendEdges(x,y,px,py,g,t);   // dithered biome-border transitions (the 16-bit blend)
 }
 // per-frame overlay for the handful of animated tile types (water/ice/ash/lava/crystal)
 function drawTileAnimCell(t,x,y,px,py){

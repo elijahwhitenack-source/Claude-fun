@@ -318,3 +318,11 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ### Verified
 - Clean build, **no console errors**, `__bench` **0.2–0.7 ms/frame** (meadow 0.37, lake 0.72, ember). Chunk cache shows no seams across grass/ice/lava transitions; occlusion confirmed behind the forge.
+
+### Phase 1 — Terrain identity — Core completed
+- **Dithered biome-border blending (the 16-bit headline):** `blendEdges()` + a 4×4 **Bayer** matrix dither a neighbouring material's colour into a tile's edges (denser at the seam, 3 rows deep, softened to 0.72 alpha so it tints not slams). Applies to *every* material pair (grass/snow, grass/sand, sand/water, snow/ice, ash/lava, road, etc.) and is baked into the static chunk = ~free per frame. Replaces the old hand-rolled grass-only edge. Result: Golden-Sun / Chrono-Trigger style interlocking transitions; hard biome edges gone.
+- **Macro value-noise (`macroNoise`):** smooth low-frequency noise modulates the grass base shade → region-scale "drier/lusher here" variation, killing the last of the flat-field read.
+- **Deferred (optional):** full master-palette ramp refactor — now low incremental value since blending already unifies the biomes, and high regression risk across the hand-tuned hexes. Revisit only if a colour-cohesion problem shows up.
+
+### Verified
+- Clean build, no console errors, `__bench` ~0.46 ms at the lake/tundra/meadow tri-border. Screenshot confirms soft dithered snow↔grass / ice↔snow / water transitions.
