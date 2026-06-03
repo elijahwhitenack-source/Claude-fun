@@ -139,9 +139,55 @@ Object.assign(DLG, {
   // assembled message (turn in at Lune)
   a2_message_done: [
     { sp: 'Archivist Lune', port: 'codex', text: 'Five shards. Twenty years I filed around the shape of this and never let myself read it. Lay them down, Warden. Let me finally do my work.' },
-    { sp: 'Archivist Lune', port: 'codex', text: 'They fit. Of course they fit. She wrote them to fit.' },
+    { sp: 'Archivist Lune', port: 'codex', text: 'They fit. Of course they fit. She wrote them to fit. Now you know what she asked. There is one road left, and you have always known where it goes.' },
+  ],
+  // ---- ACT 3/4 — the Edge, the final choice, the endings ----
+  a4_intro: [
+    { sp: 'Old Warden Sef', port: 'lore', text: 'So. You have all of her, and you understand it. Then there is nothing left for an old man to do but point.' },
+    { sp: 'Old Warden Sef', port: 'lore', text: 'South, past everything, to the Fraying Edge. He is waiting — for someone who finally read the whole thing. Go and answer him, Warden. For all of us.' },
+  ],
+  caelun_final: [
+    { sp: 'NARRATOR', text: 'The Fraying Edge. Past here the isle simply stops being. Caelun stands where the world unravels into nothing — exactly as patient as you are.' },
+    { sp: 'Caelun', port: 'caelun', text: 'You read the whole of it. I can see that you did. So you know what she actually asked for.' },
+    { sp: 'PLAYER', port: 'player', text: 'She asked us to begin. Not to repair her — to become the thing that teaches the dead to pass again. Generations of it. Starting now.' },
+    { sp: 'Caelun', port: 'caelun', text: 'Generations. Of grief held open, on purpose, as a teaching. I could not bear a single day of it. And you would author centuries.' },
+    { sp: 'Caelun', port: 'caelun', text: 'I am not your enemy, Warden. I am you, one honest conclusion further down the same road. So — now that you understand it as I do — choose. Truly choose.',
+      choices: [
+        { text: "Hold the grief open. Begin the rebuilding.", set: 'final_yvalethi', seq: 'ending_yvalethi' },
+        { text: "Let it all rest. Agree with him.", set: 'final_caelun', seq: 'ending_caelun' },
+      ] },
+  ],
+  ending_yvalethi: [
+    { sp: 'PLAYER', port: 'player', text: 'No. We hold it open. We teach the passing again — one soul at a time, for as long as it takes.' },
+    { sp: 'Caelun', port: 'caelun', text: '…Then you will outlast me. Of course you will. Patience always does.' },
+    { sp: 'NARRATOR', text: 'He does not fight. He simply releases — the first soul to pass cleanly in twenty years, and he is it. Behind him, the Edge knits a single thread closed.' },
+  ],
+  ending_caelun: [
+    { sp: 'PLAYER', port: 'player', text: '…You’re right. Enough. Let them rest. Let all of it rest.' },
+    { sp: 'Caelun', port: 'caelun', text: 'Thank you. Truly. You have no idea how long I have wanted someone to simply agree.' },
+    { sp: 'NARRATOR', text: 'You lower the Root Shard. Its light goes out, gently, the way a held breath finally leaves. And then everything does.' },
   ],
 });
+
+// Cinematic ending sequences
+export const ENDINGS = {
+  yvalethi: { title: "Yvalethi's Path — The Long Work", glow: true, lines: [
+    'The world does not look saved.',
+    'It looks like the first morning of a project that will outlive everyone who began it.',
+    'One thread, closed. Then, slowly, another.',
+    'You are not the Warden who repaired the Tree.',
+    'You are the first of the Wardens who will teach it to grow again.',
+    'Begin.',
+  ] },
+  caelun: { title: "Caelun's Path — The Quiet", glow: false, lines: [
+    'The Hollow stop their drifting, all at once, everywhere.',
+    'They rest. So does the isle. So does the wind.',
+    'It is peaceful. It is complete. It is empty.',
+    'No one is left to call it mercy, or to call it anything at all.',
+    'The Verdant Stars go dark, kindly.',
+    'Rest, then.',
+  ] },
+};
 
 /* Visions — fade-to-white scenes narrated by Yvalethi's residual intent. */
 export const VISIONS = {

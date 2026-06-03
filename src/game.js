@@ -7,7 +7,7 @@ import { mulberry32 } from './rng.js';
 import { drawGlow } from './glow.js';
 import { updateParticles, drawParticles, burstSpray, burstRing, burstMotes } from './particles.js';
 import { QUESTS, QS, FLAGS, CHAIN_LABEL } from './quests.js';
-import { DLG, VISIONS, NPC_INFO, CAELUN_SPEC, LORE_INTRO, TABLETS, BIOME_LABEL } from './story.js';
+import { DLG, VISIONS, NPC_INFO, CAELUN_SPEC, LORE_INTRO, TABLETS, BIOME_LABEL, ENDINGS } from './story.js';
 import { TILE, ELEM, RAR, POOL, champDef, GEAR, RECIPES, SKILLS, RESINFO, WEATHERS, GEAR_SETS, MILESTONES } from './constants.js';
 
 /* ===================================================================
@@ -821,7 +821,9 @@ function stepPlayer(dt){
   } else { player.px+=dx/d*sp; player.py+=dy/d*sp; }
   player.bob=Math.abs(Math.sin(now*0.012))*2.5;
 }
+let lastAmbBiome=null;
 function visitBiome(x,y){ if(!inb(x,y))return; const b=biomeMap[y]&&biomeMap[y][x]; if(!b)return;
+  if(b!==lastAmbBiome){ lastAmbBiome=b; setAmbientForBiome(b); }
   if(!S.bestiary.biomes[b]){ S.bestiary.biomes[b]=true; updateObjective('reach', b, 1); } }
 function checkAmbush(){
   const px=Math.round(player.px),py=Math.round(player.py);
@@ -1039,7 +1041,7 @@ function gainXp(skill,amt){
   const s=S.skills[skill]||(S.skills[skill]={xp:0});
   const before=levelOf(s.xp); s.xp+=amt; const after=levelOf(s.xp);
   if(after>before){ toast(`${SKILLS.find(k=>k.id===skill).n} reached Level ${after}! 🎉`);
-    burstRing(player.px*TILE+TILE/2, player.py*TILE+TILE-14, '#ffd479', 18, 110);
+    burstRing(player.px*TILE+TILE/2, player.py*TILE+TILE-14, '#ffd479', 18, 110); sfx('levelup');
     const ms=(MILESTONES[skill]||[]).find(m=>m.lvl>before&&m.lvl<=after);
     if(ms)setTimeout(()=>toast('🏆 '+(SKILLS.find(k=>k.id===skill).n)+' mastery: '+ms.n+' unlocked!'),700); }
   updateObjective('skill_level', skill, after);
@@ -1082,7 +1084,7 @@ function gatherNode(n){
     setTimeout(()=>{ n.depleted=0; burstMotes(n.x*TILE+TILE/2, n.y*TILE+TILE-8, col, 7); }, 8000+Math.random()*6000);
     player.busy=false; save(); updateHUD();
     floatNode(n, `+${yld} ${crystal?'+✦':sk.resn}`, col);
-    burstWorld(n.x,n.y, col);
+    burstWorld(n.x,n.y, col); sfx('pickup');
   },dur);
 }
 function drawGatherArc(){
@@ -1327,6 +1329,7 @@ function paintDock(){ $$('#dock canvas[data-icon]').forEach(c=>{ const g=c.getCo
    =================================================================== */
 $$('.dbtn').forEach(b=>b.onclick=()=>openPanel(b.dataset.p));
 function openPanel(p){
+  sfx('ui');
   if(p==='bag')panelBag();
   else if(p==='craft')panelCraft(null);
   else if(p==='skills')panelSkills();
@@ -1425,7 +1428,7 @@ function craft(id){
   const g=GEAR[r.out]; if(!S.equip[g.slot])S.equip[g.slot]=r.out; // auto-equip if slot empty
   save();updateHUD();panelCraft();drawInvCanvases?.();
   flashEl('.recipe[data-r="'+id+'"]',true);
-  burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,g.col,14,80);
+  burstRing(player.px*TILE+TILE/2,player.py*TILE+TILE-14,g.col,14,80); sfx('craft');
   toast('Forged '+g.name+'! 🔨');
 }
 
@@ -1557,7 +1560,7 @@ function doSummon(n){
   if(S.res.shard<cost){toast('Not enough Starshards ✦');return;}
   S.res.shard-=cost;const got=[];
   for(let i=0;i<n;i++){const d=rollHero();const dupe=gainHero(d);got.push({d,dupe});S.quests.summon=(S.quests.summon||0)+1;}
-  updateObjective('summon','*',n);
+  updateObjective('summon','*',n); sfx('summon');
   save();updateHUD();
   modal(`<h2 class="center" style="color:var(--gold)">✦ The Pool Answers ✦</h2>
     <div class="reveal">${got.map((g,i)=>{const R=RAR[g.d.rar];return `<div class="hero rar-${R.c}" style="animation-delay:${i*.05}s">
@@ -1621,7 +1624,8 @@ function startQuest(q){ S.qs[q.id]={s:QS.ACTIVE,o:{}}; q.objectives.forEach(o=>S
 function checkUnlocks(){ if(!S.qs)S.qs={}; let changed=false;
   for(const q of QUESTS){ if(!S.qs[q.id]&&isUnlocked(q)){ startQuest(q); changed=true; toast('📜 New quest: '+q.title); } }
   // Caelun manifests once the final Act-1 quest is active
-  if(S.qs['a1_voice']&&S.qs['a1_voice'].s===QS.ACTIVE&&!caelun)spawnCaelun();
+  if(S.qs['a1_voice']&&S.qs['a1_voice'].s===QS.ACTIVE&&!caelun&&!hasFlag('act_finished'))spawnCaelun();
+  if(S.qs['a4_final']&&S.qs['a4_final'].s===QS.ACTIVE&&!caelun&&!hasFlag('act_finished'))spawnFinalCaelun();
   if(changed){ save(); updateQuestTracker(); }
   return changed; }
 function updateObjective(type,target,amount){ if(!S.qs)return; let any=false;
@@ -1631,7 +1635,7 @@ function updateObjective(type,target,amount){ if(!S.qs)return; let any=false;
       st.o[o.id]= type==='skill_level' ? Math.min(o.count,Math.max(cur,amount)) : Math.min(o.count,cur+amount);
       any=true; }
     if(st.s===QS.ACTIVE && q.objectives.every(o=>(st.o[o.id]||0)>=o.count)){ st.s=QS.COMPLETE; any=true;
-      toast('✅ Quest complete: '+q.title);
+      toast('✅ Quest complete: '+q.title); sfx('quest');
       if(q.auto)setTimeout(()=>{ if(S.qs[q.id]&&S.qs[q.id].s===QS.COMPLETE){ if(q.doneDlg||q.vision)storyQueue.push(q); else grantQuestRewards(q); } },60); } }
   if(any){ save(); updateQuestTracker(); } }
 // story queue — plays auto-quest memory dialogue once combat/modals clear (e.g. after a boss victory)
@@ -1775,7 +1779,7 @@ function dlgEnd(after){ const cb=dlg&&dlg.onDone; dlg=null; $('#dlg').classList.
 // ---- vision ----
 let vision=null;
 function showVision(id,onDone){ const v=VISIONS[id]; if(!v){onDone&&onDone();return;}
-  player.busy=true; vision={id,onDone:onDone||null};
+  player.busy=true; vision={id,onDone:onDone||null}; sfx('vision');
   logLore('vision',id);
   $('#vision-cap').textContent=v.caption;
   const c=$('#vision-cv'),g=c.getContext('2d'); g.clearRect(0,0,260,220);
@@ -1818,8 +1822,26 @@ function panelLore(){
 // ---- Caelun special encounter ----
 let caelun=null;
 function spawnCaelun(){ if(caelun)return; const s=nearestWalkAdj(39,51)||[39,51]; caelun={x:s[0],y:s[1],active:true,face:'up'}; }
+function spawnFinalCaelun(){ if(caelun)return; const s=nearestWalkAdj(39,68)||nearestWalkAdj(39,66)||[39,67]; caelun={x:s[0],y:s[1],active:true,face:'up',final:true}; }
 function caelunTalk(){ if(!caelun)return; face(caelun.x,caelun.y);
+  if(caelun.final){ runDialogue('caelun_final',()=>{ const path=hasFlag('final_yvalethi')?'yvalethi':hasFlag('final_caelun')?'caelun':null; if(path)showEnding(path); else { caelun=null; } }); return; }
   runDialogue('caelun_first',()=>{ logLore('caelun','caelun_first'); caelun=null; updateObjective('caelun','*',1); toast('✦ Act I complete — the Hall of Echoes opens'); }); }
+/* ---- ENDINGS (Act 4 climax) ---- */
+function showEnding(path){ const e=ENDINGS[path]; if(!e)return;
+  setFlag('act_finished'); setFlag('final_choice',path); logLore('ending',path); caelun=null; updateObjective('caelun_final','*',1); save();
+  player.busy=true; const ov=$('#vision'); ov.className='show ending '+path; $('#vision-stage').style.display='none'; $('#vision-adv').style.display='none';
+  let i=0; function step(){ if(i>=e.lines.length){ setTimeout(()=>showCredits(path),2000); return; }
+    $('#vision-cap').innerHTML='<b style="display:block;margin-bottom:14px;font-size:15px;font-style:normal">'+e.title+'</b><div class="endline">'+e.lines[i]+'</div>';
+    i++; setTimeout(step,2900); }
+  step(); }
+function showCredits(path){ const ov=$('#vision'); ov.classList.remove('show'); ov.className=''; $('#vision-stage').style.display=''; $('#vision-adv').style.display=''; player.busy=false;
+  sfx(path==='yvalethi'?'victory':'defeat');
+  modal(`<h2 class="center gold">✦ ASTRARI ✦</h2>
+    <div class="center muted" style="line-height:1.9">Echoes of the Verdant Stars<br><br>
+      ${path==='yvalethi'?'You chose the long work. The rebuilding begins, and it is yours to carry.':'You chose the quiet. The world rests at last — complete, peaceful, and empty.'}<br><br>
+      <b style="color:var(--teal)">Thank you for playing.</b><br>
+      <span style="font-size:11px">Skyhaven still drifts. The Watch continues —<br>roam on, hunt the elites, master your crafts, or begin anew.</span></div>
+    <button class="btn gold" onclick="closeModal()">Continue the Watch</button>`); }
 /* ---- NPC + BUILDINGS ---- */
 function concludeQuest(q,n){ // play done dialogue + vision, then grant
   runDialogue(q.doneDlg||[],()=>{ if(q.vision)showVision(q.vision,()=>turnInQuest(q,n)); else turnInQuest(q,n); });
@@ -2170,7 +2192,7 @@ async function resolveBattle(){
       let dmg=Math.round(a.u.atk*atkDown*mult*(crit?1.8:1)*(0.85+Math.random()*0.3));
       t.u.hp=Math.max(0,t.u.hp-dmg);const ts2=a.side==='ally'?'foe':'ally';
       floatB(ts2,t.i,'-'+dmg+(crit?'!':''),crit?'#ffd479':mult>1?'#5ce6a4':'#ff9aa6',crit?'crit':'');
-      sparkB(ts2,t.i,crit?'#ffd479':mult>1?'#5ce6a4':'#ff9aa6',crit?10:6);
+      sparkB(ts2,t.i,crit?'#ffd479':mult>1?'#5ce6a4':'#ff9aa6',crit?10:6); sfx(crit?'crit':'hit');
       if(ts2==='ally')arenaFlash('#ff3a4a',crit||dmg>t.u.maxhp*0.25); // hit flash when your team is struck
       // chance to inflict the attacker's elemental status (higher on crit / super-effective)
       if(t.u.alive&&t.u.hp>0&&Math.random()<(0.28+(crit?0.2:0)+(mult>1?0.15:0))){applyStatus(t.u,a.u.el);
@@ -2227,6 +2249,7 @@ function endBattle(win,fled){
     setTimeout(()=>showVictory({boss:isBoss,name:isBoss?m.boss.name.split(/[ ,]/)[0]:'',astral:rew.astral,shard:rew.shard,mats:Object.entries(loot.mats||{}),gear:loot.gear,cxp,levelUp:after>before?after:0}),650);
     return;
   } else {
+    sfx('defeat');
     blog('<b style="color:var(--bad)">Defeated… you retreat to Skyhaven. Your gear and progress are safe.</b>');
     // retreat to town keep — lose nothing
     const s=safeSpawn(39,43);S.px=s[0];S.py=s[1];player.px=s[0];player.py=s[1];player.tx=s[0];player.ty=s[1];player.path=[];player.moving=false;
@@ -2236,6 +2259,7 @@ function endBattle(win,fled){
 }
 function finishBattle(){inBattle=false;player.busy=false;}
 function showVictory(d){
+  sfx('victory');
   const rows=[];
   rows.push(`<div class="vrow"><span style="font-size:18px;color:var(--gold)">◈</span> <b>+${Math.round(d.astral)}</b> <span class="muted">Astral</span></div>`);
   if(d.shard)rows.push(`<div class="vrow"><span style="font-size:18px;color:var(--rare)">✦</span> <b>+${d.shard}</b> <span class="muted">Shards</span></div>`);
@@ -2261,7 +2285,7 @@ function initAudio(){
   const ctx=new C(); audio.ctx=ctx;
   const master=ctx.createGain(); master.gain.value=0; master.connect(ctx.destination); audio.master=master;
   // warm low drone (two sines through a slowly sweeping lowpass)
-  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=520; lp.Q.value=0.4; lp.connect(master);
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=520; lp.Q.value=0.4; lp.connect(master); audio.lp=lp;
   [110,164.81].forEach(f=>{const o=ctx.createOscillator();o.type='sine';o.frequency.value=f;
     const g=ctx.createGain();g.gain.value=0.13;o.connect(g);g.connect(lp);o.start();audio.nodes.push(o);});
   const lfo=ctx.createOscillator();lfo.type='sine';lfo.frequency.value=0.05;
@@ -2290,6 +2314,34 @@ function setAmbientForWeather(){
 }
 function maybeStartAudio(){ if(audio.started)return; audio.started=true; if(S.audio)setAudio(true); }
 function toggleAudio(){ audio.started=true; setAudio(!S.audio); const b=$('#audbtn'); if(b)b.textContent=S.audio?'🔊 Ambient: ON':'🔇 Ambient: OFF'; }
+/* ---- procedural SFX (Session 10) ---- */
+function sfxTone(freq,dur,type,vol,slideTo){ if(!S.audio||!audio.ctx)return; const ctx=audio.ctx; if(ctx.state==='suspended')ctx.resume();
+  const o=ctx.createOscillator(),g=ctx.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(freq,ctx.currentTime);
+  if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,ctx.currentTime+dur);
+  g.gain.setValueAtTime(0.0008,ctx.currentTime); g.gain.linearRampToValueAtTime(vol||0.18,ctx.currentTime+0.012); g.gain.exponentialRampToValueAtTime(0.0006,ctx.currentTime+dur);
+  o.connect(g); g.connect(audio.master||ctx.destination); o.start(); o.stop(ctx.currentTime+dur+0.03); }
+function sfxArp(notes,type,vol,step){ notes.forEach((f,i)=>setTimeout(()=>sfxTone(f,0.2,type,vol),i*(step||80))); }
+function sfx(kind){ if(!S.audio||!audio.ctx)return;
+  switch(kind){
+    case 'pickup': sfxTone(620,0.12,'sine',0.13,940); break;
+    case 'hit': sfxTone(155,0.08,'square',0.12,95); break;
+    case 'crit': sfxTone(880,0.14,'sawtooth',0.14,1340); break;
+    case 'ui': sfxTone(460,0.05,'sine',0.08); break;
+    case 'levelup': sfxArp([523,659,784,1047],'triangle',0.14,70); break;
+    case 'victory': sfxArp([523,659,784,1047,1319],'triangle',0.16,95); break;
+    case 'defeat': sfxArp([330,247,196],'sine',0.16,130); break;
+    case 'quest': sfxArp([784,1047],'triangle',0.15,95); break;
+    case 'summon': sfxTone(380,0.55,'sine',0.1,1700); break;
+    case 'craft': sfxTone(190,0.12,'square',0.13,150); setTimeout(()=>sfxTone(680,0.1,'sine',0.1),95); break;
+    case 'vision': sfxArp([523,784,1047,1568],'sine',0.1,180); break;
+  } }
+// biome ambient — tilt the drone's lowpass + wind toward each biome's character
+const BIOME_AUDIO={ tundra:{lp:360,wind:0.07}, crystal:{lp:760,wind:0.04}, ember:{lp:300,wind:0.06},
+  forest:{lp:480,wind:0.05}, mountain:{lp:560,wind:0.055}, lake:{lp:620,wind:0.05}, meadow:{lp:520,wind:0.03}, plains:{lp:540,wind:0.035}, town:{lp:540,wind:0.03} };
+function setAmbientForBiome(b){ if(!audio.ctx||!audio.lp)return; const a=BIOME_AUDIO[b]||BIOME_AUDIO.meadow;
+  audio.lp.frequency.cancelScheduledValues(audio.ctx.currentTime);
+  audio.lp.frequency.linearRampToValueAtTime(a.lp,audio.ctx.currentTime+3);
+  if(audio.windGain)audio.windGain.gain.linearRampToValueAtTime(a.wind,audio.ctx.currentTime+3); }
 
 /* ===================================================================
    BOOT

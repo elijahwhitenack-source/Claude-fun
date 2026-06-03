@@ -4,7 +4,10 @@ Session-by-session tracker. Read this (and `ASTRARI_MASTER_BRIEF.md`) at the sta
 
 ---
 
-## Current architecture (after Sessions 8–9)
+## Current architecture (after Sessions 10–12)
+
+> **Project location:** now at `/Volumes/Elijah NVMe/claude-fun` (moved off the TOSHIBA EXT drive). Open it from the NVMe path. (`node_modules` is reinstalled, not copied; `sharp` for icon regen is `--no-save` / optional.)
+
 
 ```
 astrari/
@@ -239,3 +242,29 @@ User: "do 8 and 9 real quick, just send it." Focused cores, shipped together.
 
 ### Next (paused)
 - Session 10 = audio expansion; Session 11 = Acts 3–4 + endings. Or backfill any deferred depth (world bosses, NPC/champion arcs, new skills, map expansion, unique boss mechanics).
+
+---
+
+## Sessions 10–12 + drive move — 2026-06-01/02
+
+**Drive move:** relocated the whole project from `/Volumes/TOSHIBA EXT/claude-fun` → `/Volumes/Elijah NVMe/claude-fun` (rsync source + .git, `npm install` at dest, verified build + git; old copy stripped to a launch.json stub so this session's preview keeps working via `npm --prefix`). Project memory migrated to the new project key. Brief copied to NVMe root.
+
+### Session 10 — Audio — Completed (core)
+- **Procedural SFX engine** (`sfx`/`sfxTone`/`sfxArp`, routed through the ambient master gain so the audio toggle governs it): pickup, hit, crit, levelup, victory, defeat, ui (panel open), quest, summon, craft, vision. Wired into all those events.
+- **Biome ambient** (`setAmbientForBiome` + `BIOME_AUDIO`): tilts the drone's lowpass + wind per biome on biome change (cold/sparse tundra, harmonic crystal, low ember, etc.).
+- Deferred: full layered/crossfading dynamic music, per-element status tones, boss-specific themes.
+
+### Session 11 — Acts 3–4 + Endings — Completed (core = the payoff)
+- After `act2_done`, quest **`a4_final`** activates (Sef points you to the Fraying Edge) and spawns the **final Caelun** in the deep south.
+- Facing him plays the climactic dialogue ending in **THE CHOICE** (Yvalethi's Path vs Caelun's Path) via dialogue `seq` branching → sets `final_choice`.
+- **Two cinematic endings** (`ENDINGS`, `showEnding`/`showCredits`): full-screen auto-advancing line sequences (luminous "long work" vs fade-to-black "the quiet"), then a credits screen. `act_finished` flag set; logged to the Lore Journal.
+- Deferred: the multi-quest Act-3 build-out (Fraying Edge zone, quests 3.1–3.8, Warden Ghost, research camp) and a dedicated multi-phase final *boss fight* — the ending here is choice/dialogue-driven (the brief's endings are thematic, not a combat gate).
+
+### Session 12 — Final polish — Completed (light)
+- Added **README.md** (feature list + how to run/deploy). Perf was already audited in Session 2 (sub-2 ms scenes); save system has migrations in `load()`; touch targets/contrast are reasonable. Heavier audit items (Lighthouse pass, localization extraction) deferred.
+
+### Verified
+- Clean build (~171 KB), no console errors, all 6 panels open/close, audio/ending code loads. Endings reuse the verified dialogue/vision/modal systems. (Act 3–4 content gates behind `act2_done`.)
+
+### Status
+- **All 12 Master Brief sessions have a shipped core**, start → ending. Remaining work is the documented *deferred depth* across sessions (world bosses, unique boss mechanics, full NPC + champion arcs, new skills Lore/Alchemy/Passage-Weaving, prestige/Warden Network, 120×110 map expansion, dynamic music) — all enhancements on a complete game.

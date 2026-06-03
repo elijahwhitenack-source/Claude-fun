@@ -87,6 +87,13 @@ export const QUESTS = [
     startDlg: 'a2_message_done',
     rewards: { astral: 2000, shard: 80, items: ['r_starcore'], flags: ['act2_done'], xp: { skill: 'combat', amount: 300 } } },
 
+  // ===================== ACT 3/4 — THE EDGE & THE ENDING =====================
+  { id: 'a4_final', chain: 'main', act: 4, title: 'The Last Voice', npc: 'lore', auto: true,
+    desc: 'Speak with Sef, then walk south past everything to the Fraying Edge. Caelun waits. Hear him, and choose.',
+    objectives: [ { id: 'o', type: 'caelun_final', target: '*', count: 1, label: 'Face Caelun at the Fraying Edge' } ],
+    unlock: [ { type: 'flag', id: 'act2_done' } ], startDlg: 'a4_intro',
+    rewards: { astral: 5000, shard: 200, flags: ['act_finished'], xp: { skill: 'combat', amount: 500 } } },
+
   // ---- BIOME ----
   { id: 'b_tundra', chain: 'biome', act: 1, title: 'Frostpeak Survey',
     desc: 'Set foot on the frozen north and live to tell it.',
