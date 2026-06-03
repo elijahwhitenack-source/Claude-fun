@@ -27,9 +27,11 @@
     box-shadow:0 2px 7px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.07);}
   .res .ic{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 0 7px rgba(0,0,0,.35);}
-  /* premium currency (astral shards) — gilded frame so it reads as special */
-  .res:has(#r-shard){border-color:rgba(255,212,121,.4);
-    box-shadow:0 2px 9px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08),0 0 12px rgba(143,224,255,.16);}
+  /* premium currency (astral shards) — gilded frame + gentle celestial pulse */
+  .res:has(#r-shard){border-color:rgba(255,212,121,.4);animation:shardpulse 3.6s ease-in-out infinite;}
+  @keyframes shardpulse{
+    0%,100%{box-shadow:0 2px 9px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08),0 0 10px rgba(143,224,255,.12);}
+    50%{box-shadow:0 2px 9px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08),0 0 16px rgba(143,224,255,.32);} }
   .res:has(#r-shard) .ic{box-shadow:inset 0 0 0 1px rgba(143,224,255,.5),0 0 9px rgba(111,208,255,.5);}
   #envbox{text-align:right;font-size:10px;color:var(--dim);
     background:linear-gradient(180deg,rgba(28,42,64,.92),rgba(13,22,36,.92));
@@ -134,21 +136,32 @@
     opacity:0;pointer-events:none;backdrop-filter:blur(0px);
     transition:opacity .22s ease, background .22s ease, backdrop-filter .22s ease;}
   #modal.show{background:rgba(4,7,15,.82);backdrop-filter:blur(3px);opacity:1;pointer-events:auto;}
+  /* PANEL = ancient explorer's journal: parchment-dark page, gilded double frame, corner ornaments */
   .mbox{background:
-      radial-gradient(120% 80% at 50% -10%,rgba(111,208,255,.1),transparent 60%),
-      linear-gradient(180deg,var(--panel),var(--bg2));
-    border:1px solid var(--line);border-radius:18px;
-    padding:18px;width:100%;max-width:380px;max-height:86%;overflow-y:auto;position:relative;
-    box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 40px rgba(179,136,255,.16),inset 0 1px 0 rgba(255,255,255,.06);
+      radial-gradient(120% 80% at 50% -10%,rgba(111,208,255,.11),transparent 60%),
+      repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 2px,transparent 2px 4px),
+      linear-gradient(170deg,#16243a,#0e1a2c 60%,#0b1626);
+    border:1px solid var(--line);border-radius:16px;
+    padding:20px 18px 18px;width:100%;max-width:380px;max-height:86%;overflow-y:auto;position:relative;
+    box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 42px rgba(179,136,255,.14),
+      inset 0 0 0 1px rgba(255,212,121,.10),inset 0 1px 0 rgba(255,255,255,.06);
     transform:translateY(28px) scale(.965);opacity:0;
     transition:transform .26s cubic-bezier(.18,.9,.28,1.08), opacity .2s ease;}
-  /* gilded celestial hairline across the top of every panel */
-  .mbox::before{content:'';position:absolute;top:0;left:18px;right:18px;height:1px;
-    background:linear-gradient(90deg,transparent,var(--hair) 20%,rgba(111,208,255,.32) 50%,var(--hair) 80%,transparent);}
+  /* gilded celestial hairline + corner stars */
+  .mbox::before{content:'';position:absolute;top:6px;left:14px;right:14px;height:1px;
+    background:linear-gradient(90deg,transparent,var(--hair) 18%,rgba(111,208,255,.34) 50%,var(--hair) 82%,transparent);}
+  .mbox::after{content:'';position:absolute;bottom:8px;left:50%;width:64px;height:1px;transform:translateX(-50%);
+    background:linear-gradient(90deg,transparent,rgba(255,212,121,.4),transparent);}
   #modal.show .mbox{transform:translateY(0) scale(1);opacity:1;}
   .mbox::-webkit-scrollbar{width:0;}
-  .mbox .close{position:absolute;top:10px;right:14px;color:var(--dim);cursor:pointer;font-size:22px;z-index:2;}
-  .mbox h2{font-size:14px;letter-spacing:2px;color:var(--teal);margin:0 0 12px;text-transform:uppercase;}
+  .mbox .close{position:absolute;top:11px;right:13px;color:var(--dim);cursor:pointer;font-size:22px;z-index:3;
+    width:26px;height:26px;line-height:24px;text-align:center;border-radius:50%;transition:background .14s,color .14s;}
+  .mbox .close:active{background:rgba(255,255,255,.08);color:var(--txt);}
+  .mbox h2{display:flex;align-items:center;justify-content:center;gap:9px;text-align:center;
+    font-size:13px;letter-spacing:2.5px;color:var(--gold);margin:2px 22px 14px;text-transform:uppercase;
+    text-shadow:0 0 14px rgba(255,212,121,.25);}
+  .mbox h2::before,.mbox h2::after{content:'✦';font-size:9px;color:var(--celest);opacity:.85;flex:0 0 auto;}
+  .mbox h2 .hl{flex:1;}  /* optional spacer slot */
   .mbox h2.gold{background:linear-gradient(90deg,var(--gold),#fff3c4 40%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;}
   .mbox h3{margin:0 0 6px;font-size:14px;}
   .muted{color:var(--dim);font-size:12px;line-height:1.5;}
@@ -167,8 +180,10 @@
   .btn.sm{padding:7px 10px;font-size:12px;width:auto;}
   .row{display:flex;gap:8px;}
 
-  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);transition:border-color .16s ease, box-shadow .16s ease, transform .1s ease;}
+  .card{background:linear-gradient(165deg,rgba(24,40,60,.92),rgba(14,24,40,.94));border:1px solid var(--line);border-radius:12px;padding:12px 12px 12px 14px;margin-bottom:10px;position:relative;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 2px 8px rgba(0,0,0,.22);transition:border-color .16s ease, box-shadow .16s ease, transform .1s ease;}
+  .card::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:2px;border-radius:2px;
+    background:linear-gradient(180deg,var(--gold),rgba(111,208,255,.5));opacity:.55;}
   .card:hover{border-color:rgba(70,232,200,.28);box-shadow:inset 0 0 0 1px rgba(70,232,200,.1),0 0 18px rgba(70,232,200,.06);}
   .card.glow-legend{border-color:rgba(255,206,84,.45);box-shadow:inset 0 0 0 1px rgba(255,206,84,.18),0 0 22px rgba(255,206,84,.14);}
   /* tap/press feedback + action-confirm pulse */

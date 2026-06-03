@@ -285,3 +285,20 @@ Goal: lift perceived production quality toward *Stardew / Core Keeper / Eastward
 
 ### Verified
 - Clean build (~180 KB), **no console errors**, `__bench` 0.3–0.7 ms/frame across meadow/mountain/night. Screenshotted day meadow (cohesive, no checkerboard), night (torch pool + fireflies + moonlit tint), Skills panel (celestial framing). All hooks (flee, champ reroute, encounterLevel) intact.
+
+---
+
+## Visual Overhaul II — Depth, Identity & Cohesion — 2026-06-02
+
+Second pass per the 10-priority brief — goal was **depth/atmosphere/identity/cohesion/discoverability**, NOT fidelity, and **no new systems/mechanics/menus**. Perf held (**0.2–0.5 ms/frame**).
+
+- **Terrain depth + organic edges (P1):** added larger dark/light hierarchy patches + sparse dead/dry grass to `drawTile`; grass↔road/sand tiles now get a dirt fringe, edge pebbles and a poking weed via 4-neighbour lookup (`nbr`). No area reads as one flat rectangle.
+- **Roads alive (P4):** `T_PATH` rebuilt — warm dirt base variation, dirt-stain blotches, **orientation-aware wheel ruts** (continuous along the road's axis), cracks, embedded stones, and **grass intrusion** from any grassy neighbour.
+- **Buildings tell stories (P2):** `drawBuilding` rewritten with stone foundations, overhanging weathered roofs (shingle rows, moss, a damaged shingle), flickering night windows + **downward light cones**, and per-kind props — forge (chimney+ember smoke, crates, hammer sign), shrine (glowing crystal finial, ✦ facade emblem, flanking lanterns), market (striped awning, crates/barrel/produce, sign), lodge (smoking chimney, fenced flower garden), codex (rotating **orrery** star-map). Civic **banners** + etched **constellations** (ASTRARI motif).
+- **Trees rooted + veins (P3/P5):** splayed roots + ground debris at the base; subtle luminous cyan **veins** on a subset of trunks.
+- **Environmental props + landmarks (P10/P4/P5):** new purely-decorative `props[]` scatter (`genProps`, deterministic, no logic/collision) — signpost, lantern, broken cart, **ancient astral marker stone**, **celestial shrine**, ruin pillar, broken fence, abandoned tools, cold campfire, bones, and **glowing celestial flowers**. ~1+ landmark/screen. Lanterns/shrines/markers/flowers **emit light at night** (visible before you reach them).
+- **Lighting + atmosphere (P6/P7):** torch light now **shifts colour-temperature** as it flickers; building windows flicker + cast cones; faint **noon heat shimmer** in ember/plains; time-of-day cues already layered (dawn pollen, dusk fireflies, night starlight).
+- **UI → fantasy journal (P8):** panels rebuilt as an explorer's journal — parchment-dark page, gilded **double frame** + top hairline + bottom flourish, **centred ✦ titles** with flanking stars, cards with a gold/celestial **accent bar** + depth, circular close button. Premium astral-shard chip gains a gentle **celestial pulse**.
+
+### Verified
+- Clean build (~185 KB), **no console errors**, `__bench` **0.2–0.5 ms/frame** across town/meadow/night. Screenshotted: town (storytelling buildings), day meadow (landmarks + props, organic edges, no noise), night (light pockets from lanterns/flowers + torch), Skills panel (journal framing). No new systems — purely visual.
