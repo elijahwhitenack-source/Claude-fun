@@ -1163,7 +1163,27 @@ function drawLighting(){
   // faint cool moonlight lift → soft blue-green shadows, moonlit ambience
   if(dt.dark>0.3){ ctx.save(); ctx.globalCompositeOperation='lighter';
     ctx.fillStyle=`rgba(74,128,150,${(0.05*dt.dark).toFixed(3)})`; ctx.fillRect(0,0,VW,VH); ctx.restore(); }
+  // BLOOM (gated): the warm light pools bleed a soft glow. Rendered at 1/3 res from the
+  // same `tints`, then upscaled (bilinear blur) and added — cheap, night-only.
+  if(BLOOM_ON&&dt.dark>0.35&&tints.length){
+    const sc=ensureBloom(), g2=bloomG;
+    g2.clearRect(0,0,bloomCv.width,bloomCv.height); g2.globalCompositeOperation='lighter';
+    for(const s of tints){ const[cx,cy,r,col,a]=s; const gx=cx*sc,gy=cy*sc,gr=r*sc*1.5;
+      const grd=g2.createRadialGradient(gx,gy,0,gx,gy,gr);
+      grd.addColorStop(0,`rgba(${col},${Math.min(1,a*1.7)})`);grd.addColorStop(1,`rgba(${col},0)`);
+      g2.fillStyle=grd; g2.fillRect(gx-gr,gy-gr,gr*2,gr*2); }
+    ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=0.5; ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(bloomCv,0,0,bloomCv.width,bloomCv.height,0,0,VW,VH); ctx.restore();
+  }
 }
+// cheap bloom buffer (1/3 res) — gated by viewport size for low-end devices
+let bloomCv=null, bloomG=null, BLOOM_ON=true;
+const BLOOM_SCALE=0.34;
+function ensureBloom(){ const bw=Math.max(1,(VW*BLOOM_SCALE)|0), bh=Math.max(1,(VH*BLOOM_SCALE)|0);
+  if(!bloomCv){ bloomCv=document.createElement('canvas'); }
+  if(bloomCv.width!==bw||bloomCv.height!==bh){ bloomCv.width=bw; bloomCv.height=bh; bloomG=bloomCv.getContext('2d'); }
+  return BLOOM_SCALE; }
+window.__bloom=(v)=>{ BLOOM_ON=!!v; return 'bloom '+BLOOM_ON; };
 /* ---- AMBIENT ATMOSPHERE ---- screen-space motes: dust, spores, fireflies,
    drifting starlight (ASTRARI's celestial identity) and magical pollen.
    ~26 particles total, wrap around the viewport — cheap and never noisy. */
@@ -1231,6 +1251,19 @@ function drawBiomeGrade(){
   const b=biomeMap[cy][cx], col=BIOME_GRADE[b];
   if(!col)return;
   ctx.fillStyle=`rgba(${col},0.07)`; ctx.fillRect(0,0,VW,VH);
+}
+// Coloured time-of-day ambient ramp (golden dawn → cool morning → warm afternoon →
+// rose dusk). Soft-light grade so it warms/cools the whole scene; night handled by lighting.
+const GRADE_STOPS=[ [0.18,30,40,70,0],[0.22,255,176,116,0.15],[0.30,255,222,186,0.07],
+  [0.45,206,222,255,0.05],[0.52,255,248,233,0.035],[0.62,255,226,178,0.08],
+  [0.72,255,168,110,0.15],[0.78,255,122,122,0.17],[0.82,30,40,70,0] ];
+function drawDayGrade(){ const t=S.clock; if(t<0.18||t>0.82)return;
+  let i=0; while(i<GRADE_STOPS.length-1&&t>GRADE_STOPS[i+1][0])i++;
+  const a=GRADE_STOPS[i], b=GRADE_STOPS[i+1], f=(t-a[0])/Math.max(1e-3,b[0]-a[0]);
+  const al=a[4]+(b[4]-a[4])*f; if(al<=0.003)return;
+  const r=a[1]+(b[1]-a[1])*f, g=a[2]+(b[2]-a[2])*f, bl=a[3]+(b[3]-a[3])*f;
+  ctx.save(); ctx.globalCompositeOperation='soft-light'; ctx.globalAlpha=al;
+  ctx.fillStyle=`rgb(${r|0},${g|0},${bl|0})`; ctx.fillRect(0,0,VW,VH); ctx.restore();
 }
 let shakeMag=0;
 function addShake(m){ shakeMag=Math.min(10,Math.max(shakeMag,m)); }
@@ -1416,6 +1449,7 @@ function render(){
   drawAmbient();
   ctx.restore();
   drawBiomeGrade();
+  drawDayGrade();
   drawVignette();
   drawMinimap();
   drawFade();

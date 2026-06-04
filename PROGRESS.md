@@ -335,3 +335,14 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ### Verified
 - Clean build, no console errors, `__bench` **~0.8 ms/frame** in the lush meadow (grass pass included) — still ~5% of budget. Noon meadow shows clustered rippling grass; occlusion + shadows confirmed.
+
+## Balance — Idle/AFK nerf — 2026-06-02
+- Idle Starshard accrual scaled with summed skill level → **tens of thousands** of shards over a few hours. Now a flat **`floor(0.0025*sec)`** (~9/hr, ~72 at the cap), **progression-independent** — summons reward active play (crystal gathering, combat, aurora), not AFK. Astral/ore/wood idle cut ~4–6×. Idle cap **12h → 8h**.
+
+## Phase 3 — Lighting & atmosphere — Completed (core)
+- **Coloured time-of-day ambient ramp (`drawDayGrade`):** a `soft-light` full-screen grade interpolated over `GRADE_STOPS` — **golden dawn → cool morning → neutral noon → warm afternoon → rose dusk** (night still handled by the lighting layer). Pixel-verified: afternoon reads warmer (R−B −18) than morning (−22).
+- **Gated night bloom:** the warm light pools bleed a soft glow — rendered from the same `tints` into a **1/3-res** buffer (`bloomCv`), then upscaled (bilinear = cheap blur) and added with `lighter`, **night-only** (`dt.dark>0.35`), toggleable via `__bloom`/`BLOOM_ON`. Building windows, lanterns, crystals and the torch now glow (Children-of-Morta atmosphere). ~0.66 ms/frame at night incl. bloom.
+- **Faux directional sprite shading (item 14):** considered delivered via the global ambient grade (every sprite now takes the scene's colour temperature) + Phase-2 directional shadows + existing rim light; a bespoke per-sprite "lit side" was skipped as low-ROI/fiddly.
+
+### Verified
+- Clean build, no console errors, `__bench` 0.66 ms night (bloom on). Night-town screenshot shows warm/cool window bloom halos; day-grade pixel-confirmed.
