@@ -405,8 +405,8 @@ function sunDir(){ const t=S.clock;
 function dirShadow(g,r,alpha){ const sd=sunDir();
   g.save(); g.translate(sd.ox*(r/12),0); g.scale(sd.sx,0.42);
   drawGlow(g,0,0,'#05080a',r,alpha*(sd.a/0.34)); g.restore(); }
-function drawAvatar(g,cx,cy,s,spec,face,bob){
-  bob=bob||0; face=face||'down';
+function drawAvatar(g,cx,cy,s,spec,face,bob,mv){
+  bob=bob||0; face=face||'down'; mv=mv||0;
   const dir=face;
   // soft directional shadow (offset/stretched by the sun; cached sprite — cheap)
   g.save();
@@ -440,9 +440,13 @@ function drawAvatar(g,cx,cy,s,spec,face,bob){
   // humanoid
   g.translate(0,-22*s);
   const cloak=spec.cloak, skin=spec.skin, hair=spec.hair;
+  // walk cycle (procedural) — legs stride + lift, arms counter-swing; tiny idle sway otherwise
+  const sw = mv>0.01 ? Math.sin(now*0.013+cx*0.04)*mv : 0;
+  const idle = mv>0.01 ? 0 : Math.sin(now*0.0024+cx*0.02)*0.4;
   // legs
   g.fillStyle=shade(cloak,-50);
-  g.fillRect(-4*s,14*s,3.2*s,7*s); g.fillRect(0.8*s,14*s,3.2*s,7*s);
+  g.fillRect((-4+sw*1.3)*s,(14-Math.max(0,sw)*1.7)*s,3.2*s,7*s);
+  g.fillRect((0.8-sw*1.3)*s,(14-Math.max(0,-sw)*1.7)*s,3.2*s,7*s);
   // body/cloak
   g.fillStyle=cloak;
   g.beginPath();
@@ -452,9 +456,10 @@ function drawAvatar(g,cx,cy,s,spec,face,bob){
   // cloak highlight
   g.fillStyle=shade(cloak,28);
   g.beginPath();g.moveTo(-6*s,4*s);g.quadraticCurveTo(0,-1*s,6*s,4*s);g.lineTo(3*s,5*s);g.quadraticCurveTo(0,2*s,-3*s,5*s);g.closePath();g.fill();
-  // arms
+  // arms (counter-swing to legs; gentle idle sway)
   g.fillStyle=shade(cloak,-20);
-  g.fillRect(-7*s,5*s,2.4*s,8*s); g.fillRect(4.6*s,5*s,2.4*s,8*s);
+  g.fillRect((-7-sw*1.1)*s,(5+(sw+idle)*0.7)*s,2.4*s,8*s);
+  g.fillRect((4.6+sw*1.1)*s,(5+(-sw+idle)*0.7)*s,2.4*s,8*s);
   // ARMOR overlays (scale detail with tier) — visible plate, pauldrons, trim
   const tier=spec.armorTier||0;
   if(tier>0){
@@ -1410,7 +1415,7 @@ function render(){
   buildings.forEach(b=>{ if(vis(b.x,b.y)||vis(b.x+b.w,b.y+b.h))draws.push({y:b.y+b.h-1, fn:()=>{
     const behind=player.px>=b.x-0.5&&player.px<=b.x+b.w-0.5&&player.py<=b.y+b.h-1&&player.py>=b.y-2.4;
     if(behind)ctx.globalAlpha=0.5; drawBuilding(b); if(behind)ctx.globalAlpha=1; }}); });
-  npcs.forEach(n=>{ if(vis(n.bx,n.by))draws.push({y:n.by, fn:()=>drawAvatar(ctx,n.bx*TILE-cam.x+TILE/2,n.by*TILE-cam.y+TILE-2,1,{kind:'npc',skin:n.skin,cloak:n.cloak,hair:'#2a2030',weapon:false},n.face,0)}); });
+  npcs.forEach(n=>{ if(vis(n.bx,n.by))draws.push({y:n.by, fn:()=>drawAvatar(ctx,n.bx*TILE-cam.x+TILE/2,n.by*TILE-cam.y+TILE-2,1,{kind:'npc',skin:n.skin,cloak:n.cloak,hair:'#2a2030',weapon:false},n.face,0,n.tgX!==undefined?1:0)}); });
   monsters.forEach(m=>{ if(!m.alive||!vis(m.x,m.y))return;
     draws.push({y:m.y, fn:()=>{ const sc=m.boss?1.7:(m.elite?1.32:1);
       const cx2=m.x*TILE-cam.x+TILE/2, cy2=m.y*TILE-cam.y+TILE-2;
@@ -1423,7 +1428,7 @@ function render(){
       else { ctx.fillStyle='rgba(255,90,122,.9)';ctx.font='8px sans-serif';ctx.textAlign='center';
         ctx.fillText('Lv'+encounterLevel(m), cx2, m.y*TILE-cam.y+2); } }}); });
   draws.push({y:player.py, fn:()=>{ const pcx=player.px*TILE-cam.x+TILE/2, pcy=player.py*TILE-cam.y+TILE-2, bob=player.moving?player.bob:Math.sin(now*0.0023)*0.8;
-    drawAvatar(ctx,pcx,pcy,1.05,wardenSpec(),player.face,bob);
+    drawAvatar(ctx,pcx,pcy,1.05,wardenSpec(),player.face,bob,player.moving?1:0);
     if(dayTint().dark>0.22) drawTorch(ctx,pcx+(player.face==='left'?-8:8),pcy-16-bob,player.face); }});
   if(caelun&&caelun.active&&vis(caelun.x,caelun.y))draws.push({y:caelun.y, fn:()=>{ const cx=caelun.x*TILE-cam.x+TILE/2, cy=caelun.y*TILE-cam.y+TILE-2;
     for(let k=0;k<5;k++){ const a=now*0.001+k; drawGlow(ctx,cx+Math.cos(a)*8,cy-18+Math.sin(a*1.3)*10,'#7a3bd4',2.5,0.5); }
@@ -2716,12 +2721,25 @@ function blog(m){const l=$('#blog');if(l){l.innerHTML+=m+'<br>';l.scrollTop=l.sc
 function floatB(side,i,txt,col,cls){const el=$('#bu-'+side+'-'+i);if(!el)return;
   const f=document.createElement('div');f.className='float-dmg'+(cls?' '+cls:'');f.textContent=txt;f.style.color=col;f.style.top='0';el.appendChild(f);setTimeout(()=>f.remove(),1100);}
 function sparkB(side,i,col,n){const el=$('#bu-'+side+'-'+i);if(!el)return;
-  el.animate?el.animate([{transform:'translateX(0)'},{transform:'translateX(-3px)'},{transform:'translateX(3px)'},{transform:'translateX(0)'}],{duration:160}):0;
-  for(let k=0;k<(n||6);k++){const sp=document.createElement('div');const ang=Math.random()*6.28,dist=7+Math.random()*15;
-    sp.style.cssText=`position:absolute;left:50%;top:42%;width:3px;height:3px;border-radius:1px;background:${col};box-shadow:0 0 4px ${col};pointer-events:none;z-index:4;transition:transform .42s ease-out,opacity .42s;`;
+  for(let k=0;k<(n||6);k++){const sp=document.createElement('div');const ang=Math.random()*6.28,dist=7+Math.random()*16;
+    sp.style.cssText=`position:absolute;left:50%;top:42%;width:3px;height:3px;border-radius:1px;background:${col};box-shadow:0 0 5px ${col};pointer-events:none;z-index:4;transition:transform .42s ease-out,opacity .42s;`;
     el.appendChild(sp);
     requestAnimationFrame(()=>{sp.style.transform=`translate(${Math.cos(ang)*dist}px,${Math.sin(ang)*dist}px)`;sp.style.opacity='0';});
     setTimeout(()=>sp.remove(),440);}}
+// target reaction: white hit-flash + squash-stretch (heavier on crit)
+function hitFx(side,i,col,crit){const el=$('#bu-'+side+'-'+i);if(!el||!el.animate)return;
+  el.animate([
+    {filter:'brightness(1)',transform:'scale(1,1)'},
+    {filter:`brightness(2.6) drop-shadow(0 0 6px ${col})`,transform:`scale(${crit?1.2:1.1},${crit?0.82:0.9})`,offset:0.16},
+    {filter:'brightness(1.25)',transform:'scale(0.92,1.08)',offset:0.46},
+    {filter:'brightness(1)',transform:'scale(1,1)'} ],{duration:crit?330:230,easing:'ease-out'});
+  // quick slash arc across the target
+  const sl=document.createElement('div');
+  sl.style.cssText=`position:absolute;left:8%;top:46%;width:84%;height:2px;background:linear-gradient(90deg,transparent,${col},transparent);box-shadow:0 0 6px ${col};pointer-events:none;z-index:5;transform:rotate(-22deg) scaleX(0);opacity:.9;transition:transform .12s ease-out,opacity .25s ease .1s;`;
+  el.appendChild(sl); requestAnimationFrame(()=>{sl.style.transform='rotate(-22deg) scaleX(1)';sl.style.opacity='0';}); setTimeout(()=>sl.remove(),360);}
+// attacker lunge toward the enemy side
+function lungeFx(side,i){const el=$('#bu-'+side+'-'+i);if(!el||!el.animate)return; const d=side==='ally'?1:-1;
+  el.animate([{transform:'translateX(0)'},{transform:`translateX(${d*9}px) scale(1.06)`,offset:0.4},{transform:'translateX(0)'}],{duration:220,easing:'ease-out'});}
 function arenaFlash(col,big){const a=$('#arena');if(!a)return;
   const f=document.createElement('div');f.style.cssText=`position:absolute;inset:0;background:${col};border-radius:14px;pointer-events:none;z-index:5;opacity:.0;transition:opacity .07s;`;
   a.appendChild(f);requestAnimationFrame(()=>{f.style.opacity=big?'0.4':'0.22';requestAnimationFrame(()=>{f.style.transition='opacity .3s';f.style.opacity='0';});});
@@ -2764,16 +2782,20 @@ async function resolveBattle(){
       const t=ts[Math.random()*ts.length|0];const mult=elemMult(a.u.el,t.u.el);const crit=Math.random()<0.18;
       const atkDown=a.u.status&&a.u.status.atkDown?(1-a.u.status.atkDown):1;
       let dmg=Math.round(a.u.atk*atkDown*mult*(crit?1.8:1)*(0.85+Math.random()*0.3));
+      lungeFx(a.side,a.i); await sleep(45);                         // wind-up lunge, then strike connects
       t.u.hp=Math.max(0,t.u.hp-dmg);const ts2=a.side==='ally'?'foe':'ally';
+      // elemental colour language: super-effective = green, crit = gold, else the attacker's element
+      const ecol=crit?'#ffd479':mult>1?'#5ce6a4':(ELEM[a.u.el]&&ELEM[a.u.el].col)||'#ff9aa6';
       floatB(ts2,t.i,'-'+dmg+(crit?'!':''),crit?'#ffd479':mult>1?'#5ce6a4':'#ff9aa6',crit?'crit':'');
-      sparkB(ts2,t.i,crit?'#ffd479':mult>1?'#5ce6a4':'#ff9aa6',crit?10:6); sfx(crit?'crit':'hit');
+      hitFx(ts2,t.i,ecol,crit); sparkB(ts2,t.i,ecol,crit?12:6); sfx(crit?'crit':'hit');
       if(ts2==='ally')arenaFlash('#ff3a4a',crit||dmg>t.u.maxhp*0.25); // hit flash when your team is struck
+      if(crit){const ar=$('#arena'); ar&&ar.animate&&ar.animate([{transform:'translateX(0)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(-2px)'},{transform:'translateX(0)'}],{duration:200});}
       // chance to inflict the attacker's elemental status (higher on crit / super-effective)
       if(t.u.alive&&t.u.hp>0&&Math.random()<(0.28+(crit?0.2:0)+(mult>1?0.15:0))){applyStatus(t.u,a.u.el);
         const st=STATUS[a.u.el];if(st){floatB(ts2,t.i,st.ic+st.n,st.col);blog(`<span style="color:${st.col}">${t.u.name} is afflicted with ${st.n}!</span>`);}}
       if(t.u.hp<=0)t.u.alive=false;
       hpUI(ts2,t.i,t.u);
-      await sleep(110);
+      await sleep(crit?190:90);                                     // hit-stop: crits land heavier
     }
   }
   endBattle(foes.every(u=>!u.alive),false);

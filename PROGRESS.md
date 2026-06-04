@@ -346,3 +346,11 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ### Verified
 - Clean build, no console errors, `__bench` 0.66 ms night (bloom on). Night-town screenshot shows warm/cool window bloom halos; day-grade pixel-confirmed.
+
+## Phase 4 — Sprites & combat juice — Completed (core)
+- **Procedural walk/idle animation:** `drawAvatar` gained a `mv` (move-amount) param → a walk cycle (legs **stride + lift**, arms **counter-swing**) when moving, and a subtle idle arm sway otherwise. Player passes `player.moving?1:0`, NPCs pass their wander state. Chose procedural over the frame-cache bake from the plan — we have the headroom and it avoids cache machinery.
+- **Combat juice** (DOM arena, `el.animate`): **attacker lunge** (wind-up toward the enemy), **target hit-flash + squash-stretch** + a quick **slash arc**, **elemental colour language** on impact sparks (super-effective = green, crit = gold, else the attacker's element colour), **crit hit-stop** (190 ms vs 90 ms) + an **arena shake**. `sparkB` refactored (shake moved into `hitFx`).
+- **Deferred:** dedicated enemy attack telegraphs (the lunge serves as a mini wind-up); frame-cached sprite atlases (procedural anim is enough at this scale).
+
+### Verified
+- Clean build, no console errors, walk cycle renders, `__bench` 0.79 ms. Combat FX wired into the resolve loop (couldn't force a battle in the headless harness — to be confirmed in a live fight). Battle pacing +~23 % per normal hit for the wind-up/impact feel.
