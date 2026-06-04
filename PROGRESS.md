@@ -354,3 +354,15 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ### Verified
 - Clean build, no console errors, walk cycle renders, `__bench` 0.79 ms. Combat FX wired into the resolve loop (couldn't force a battle in the headless harness — to be confirmed in a live fight). Battle pacing +~23 % per normal hit for the wind-up/impact feel.
+
+## Phase 5 — UI finish — Completed (core)
+- **Ornate panel frames:** four gold corner-star ornaments added to `.mbox` via inline-SVG background layers (`background-attachment` keeps them pinned to the frame while content scrolls) — a 9-slice-style framed-page feel on top of the existing gilded double frame + hairline + flourish.
+- **Bespoke currency glyphs:** new `drawResIcon`/`paintResIcons` render custom canvas icons for the resource bar — a faceted **gold gem** (astral), a glowing **celestial star** (premium shard), a **bronze ingot** (ore), and a **wood log** — replacing the unicode/emoji (◈✦⛁🪵). Matches the existing custom dock-icon system; premium shard keeps its blue glow.
+- **Pixel display font (item 20): intentionally skipped.** The UI is an elegant celestial journal (soft gradients, gold filigree, letter-spaced display type); a chunky pixel font would fight that aesthetic and bloat the single-file bundle. Trivial to add later as a toggle if the chunkier retro look is wanted.
+
+### Verified
+- Clean build, no console errors. Screenshots: panel shows gold corner-stars; resource bar shows the four bespoke glyphs (premium shard glowing). `__bench` unchanged (~0.4–0.8 ms).
+
+---
+
+## Roadmap status: **Phases 0–5 complete and live.** Remaining: optional **Phase 6 — authored-tileset fork** (pixel-art atlas + 47-blob autotiler + sprite sheets; only if pursuing true pixel-art fidelity, and the one place a thin WebGL/Pixi post layer would be reconsidered).

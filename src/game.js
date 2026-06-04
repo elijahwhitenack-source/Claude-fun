@@ -1856,6 +1856,31 @@ function drawDockIcon(g,kind){ const main='#b3bed4', acc='#46e8c8'; g.lineCap='r
     g.strokeStyle=acc;g.lineWidth=2.2;g.beginPath();g.moveTo(-7,5);g.lineTo(7,5);g.stroke(); } }
 function paintDock(){ $$('#dock canvas[data-icon]').forEach(c=>{ const g=c.getContext('2d');g.clearRect(0,0,48,48);
   g.save();g.translate(24,24);g.scale(2,2);drawDockIcon(g,c.dataset.icon);g.restore(); }); }
+// bespoke currency glyphs (replace the unicode/emoji in the resource bar)
+function drawResIcon(g,kind){ g.lineCap='round';g.lineJoin='round';
+  if(kind==='astral'){ // gold faceted gem
+    g.fillStyle='#e0a93f';g.beginPath();g.moveTo(0,-7);g.lineTo(6,-1);g.lineTo(0,8);g.lineTo(-6,-1);g.closePath();g.fill();
+    g.fillStyle='#ffd479';g.beginPath();g.moveTo(0,-7);g.lineTo(6,-1);g.lineTo(0,-1);g.lineTo(-6,-1);g.closePath();g.fill();
+    g.fillStyle='#fff3c4';g.beginPath();g.moveTo(0,-7);g.lineTo(0,-1);g.lineTo(-6,-1);g.closePath();g.fill();
+    g.strokeStyle='rgba(0,0,0,.25)';g.lineWidth=0.7;g.beginPath();g.moveTo(-6,-1);g.lineTo(6,-1);g.moveTo(0,-7);g.lineTo(0,8);g.stroke();
+  } else if(kind==='shard'){ // celestial premium star
+    drawGlow(g,0,0,'#6fd0ff',6,0.6);
+    g.fillStyle='#6fd0ff';star4(g,0,0,8,2.6);
+    g.fillStyle='#dff2ff';star4(g,0,0,4.2,1.4);
+    g.fillStyle='#fff';g.beginPath();g.arc(0,0,1.2,0,7);g.fill();
+  } else if(kind==='ore'){ // bronze ingot
+    g.fillStyle='#a06a32';g.beginPath();g.moveTo(-7,2);g.lineTo(-4,-3);g.lineTo(5,-3);g.lineTo(7,2);g.lineTo(7,4);g.lineTo(-7,4);g.closePath();g.fill();
+    g.fillStyle='#d9a05b';g.beginPath();g.moveTo(-7,2);g.lineTo(-4,-3);g.lineTo(5,-3);g.lineTo(7,2);g.closePath();g.fill();
+    g.fillStyle='#f0c884';g.beginPath();g.moveTo(-4,-3);g.lineTo(5,-3);g.lineTo(3.5,-1);g.lineTo(-3,-1);g.closePath();g.fill();
+  } else if(kind==='wood'){ // log with end-grain rings
+    g.fillStyle='#7a5a36';rrPath(g,-7,-4,14,8,2);g.fill();
+    g.fillStyle='#9b7344';g.beginPath();g.ellipse(5,0,2,3.6,0,0,7);g.fill();
+    g.strokeStyle='#6a4a28';g.lineWidth=0.8;g.beginPath();g.ellipse(5,0,1,1.8,0,0,7);g.stroke();
+    g.strokeStyle='#5e4022';g.lineWidth=0.9;g.beginPath();g.moveTo(-4,-4);g.lineTo(-4,4);g.moveTo(0,-4);g.lineTo(0,4);g.stroke();
+  }
+}
+function paintResIcons(){ $$('#res canvas[data-ic]').forEach(c=>{ const g=c.getContext('2d');g.clearRect(0,0,c.width,c.height);
+  g.save();g.translate(c.width/2,c.height/2);g.scale(c.width/22,c.height/22);drawResIcon(g,c.dataset.ic);g.restore(); }); }
 
 /* ===================================================================
    DOCK PANELS
@@ -3000,6 +3025,7 @@ visitBiome(S.px,S.py);   // record starting biome
 checkUnlocks();          // offer starter quests
 updateQuestTracker();
 paintDock();
+paintResIcons();
 updateHUD();
 welcome();
 requestAnimationFrame(loop);

@@ -27,12 +27,13 @@
     box-shadow:0 2px 7px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.07);}
   .res .ic{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 0 7px rgba(0,0,0,.35);}
+  .res .ric{width:17px;height:17px;display:block;flex:0 0 auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));}
   /* premium currency (astral shards) — gilded frame + gentle celestial pulse */
   .res:has(#r-shard){border-color:rgba(255,212,121,.4);animation:shardpulse 3.6s ease-in-out infinite;}
   @keyframes shardpulse{
     0%,100%{box-shadow:0 2px 9px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08),0 0 10px rgba(143,224,255,.12);}
     50%{box-shadow:0 2px 9px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08),0 0 16px rgba(143,224,255,.32);} }
-  .res:has(#r-shard) .ic{box-shadow:inset 0 0 0 1px rgba(143,224,255,.5),0 0 9px rgba(111,208,255,.5);}
+  .res:has(#r-shard) .ric{filter:drop-shadow(0 0 4px rgba(111,208,255,.6));}
   #envbox{text-align:right;font-size:10px;color:var(--dim);
     background:linear-gradient(180deg,rgba(28,42,64,.92),rgba(13,22,36,.92));
     border:1px solid rgba(120,150,200,.2);border-radius:13px;padding:5px 11px;pointer-events:auto;min-width:96px;
@@ -138,6 +139,10 @@
   #modal.show{background:rgba(4,7,15,.82);backdrop-filter:blur(3px);opacity:1;pointer-events:auto;}
   /* PANEL = ancient explorer's journal: parchment-dark page, gilded double frame, corner ornaments */
   .mbox{background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11'%3E%3Cpath d='M5.5 0L6.6 4.4 11 5.5 6.6 6.6 5.5 11 4.4 6.6 0 5.5 4.4 4.4Z' fill='%23ffd479' fill-opacity='0.6'/%3E%3C/svg%3E") 10px 10px / 11px 11px no-repeat,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11'%3E%3Cpath d='M5.5 0L6.6 4.4 11 5.5 6.6 6.6 5.5 11 4.4 6.6 0 5.5 4.4 4.4Z' fill='%23ffd479' fill-opacity='0.6'/%3E%3C/svg%3E") right 10px top 10px / 11px 11px no-repeat,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11'%3E%3Cpath d='M5.5 0L6.6 4.4 11 5.5 6.6 6.6 5.5 11 4.4 6.6 0 5.5 4.4 4.4Z' fill='%23ffd479' fill-opacity='0.6'/%3E%3C/svg%3E") 10px bottom 10px / 11px 11px no-repeat,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11'%3E%3Cpath d='M5.5 0L6.6 4.4 11 5.5 6.6 6.6 5.5 11 4.4 6.6 0 5.5 4.4 4.4Z' fill='%23ffd479' fill-opacity='0.6'/%3E%3C/svg%3E") right 10px bottom 10px / 11px 11px no-repeat,
       radial-gradient(120% 80% at 50% -10%,rgba(111,208,255,.11),transparent 60%),
       repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 2px,transparent 2px 4px),
       linear-gradient(170deg,#16243a,#0e1a2c 60%,#0b1626);
