@@ -2894,10 +2894,18 @@ function setAmbientForBiome(b){ if(!audio.ctx||!audio.lp)return; const a=BIOME_A
    BOOT
    =================================================================== */
 function applyIdle(){
-  const now=Date.now();let sec=clamp((now-(S.lastSeen||now))/1000,0,12*3600);
+  // Idle is a modest trickle, NOT the main income — active gathering/combat is.
+  // Cap at 8h; Starshards accrue slowly and DON'T scale with skill level (that was
+  // what ballooned to tens of thousands), so summoning rewards playing, not AFK.
+  const now=Date.now();let sec=clamp((now-(S.lastSeen||now))/1000,0,8*3600);
   if(sec<30)return null;
   const tl=SKILLS.reduce((a,s)=>a+(s.res?skillLvl(s.id):0),0);
-  const r={astral:(0.8+tl*0.05)*sec,ore:(0.4+tl*0.03)*sec,wood:(0.4+tl*0.03)*sec,shard:(0.04+tl*0.003)*sec+10};
+  const r={
+    astral:(0.45+tl*0.012)*sec,
+    ore:(0.12+tl*0.006)*sec,
+    wood:(0.12+tl*0.006)*sec,
+    shard:Math.floor(0.0025*sec),   // ~9/hr → ~72 over a full 8h (was tens of thousands)
+  };
   S.res.astral+=r.astral;S.res.ore+=r.ore;S.res.wood+=r.wood;S.res.shard+=r.shard;
   return {sec,r};
 }
