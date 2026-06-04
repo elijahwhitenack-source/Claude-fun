@@ -365,4 +365,16 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ---
 
-## Roadmap status: **Phases 0–5 complete and live.** Remaining: optional **Phase 6 — authored-tileset fork** (pixel-art atlas + 47-blob autotiler + sprite sheets; only if pursuing true pixel-art fidelity, and the one place a thin WebGL/Pixi post layer would be reconsidered).
+## Roadmap status: **Phases 0–5 complete and live.** Remaining: optional **Phase 6 — authored-tileset fork** (see `PHASE6_SCOPE.md`).
+
+---
+
+## World Expansion — bigger map, caves, loot, recall-home — 2026-06-04
+
+- **Map ~6.4× larger:** `MW/MH` 78×72 → **200×180** (36k tiles). The chunked tile bake (Phase 0) makes this free per frame — only visible chunks bake. `MAPVER` bumped 3→4 so old saves respawn safely at town.
+- **Voronoi biome layout:** hardcoded `biomeAt` replaced with **noise-jittered nearest-seed Voronoi** (`BIOME_SEEDS`, normalized so it scales with map size) — gentle biomes (meadow/forest/plains) hug the fixed town, harsher ones (mountain/tundra/ember/crystal) radiate far out. Organic borders via `macroNoise`. Terrain-feature scatter (frozen ponds/lava pools/peaks/spires) now proportional to area and kept clear of the town gates.
+- **Caves + abandoned buildings to loot:** new `cave`/`ruin` structures (`placeStructure`, 12 caves + 16 hovels) scattered in the wilderness, rendered in the overworld (`drawWildStructure`: glowing cave mouths + broken hovels with a "⌖" hint while unlooted). Walk in → reuses the interior/fade system with new `INTERIORS.cave`/`ruin` (a **loot chest** station + crystal deco). `lootChest()` grants a one-time, **distance-scaled** reward (gear + astral + ore/wood + a chance of shards), tracked in `S.looted`.
+- **Recall-home FAB:** a gilded bottom-right button (`#homebtn`, bespoke house+star canvas glyph, gentle pulse) **warps the warden to the Warden Lodge** with a little animation — burst-ring + mote swirl out, fade, then an arrival swirl at the lodge (`teleportHome` via the existing `startFade`). Uses `safeSpawn` fallback if the lodge is missing.
+
+### Verified
+- Clean build, no console errors, `__bench` 0.5–1.1 ms across town / far ember / cave-region. Screenshots: huge varied biome map on the minimap; cave entrances in the wild; cave interior with chest; "Treasure Unearthed" loot (gave an Aetherflux Staff + resources); recall-home returned the warden from the far map to the lodge. Temp dev hooks removed.

@@ -44,7 +44,7 @@ function combatLevel(){return levelOf(S.combatXp);}
 /* ===================================================================
    WORLD GENERATION  (seeded, stable)
    =================================================================== */
-const MW=78, MH=72;
+const MW=200, MH=180;                 // ~6.4× the old 78×72 — a sprawling world to explore
 // tile codes
 const T_GRASS=0,T_PATH=1,T_WATER=2,T_SAND=3,T_FOREST=4,T_MTN=5,T_PLAIN=6,T_DEEP=7,
       T_SNOW=8,T_ICE=9,T_ASH=10,T_LAVA=11,T_CRYST=12;
@@ -59,17 +59,27 @@ const BIOMES={
   lake:{name:'Aether Lake',ground:T_WATER,col:'#2767b0',el:'flux'},
   town:{name:'Skyhaven',ground:T_PATH,col:'#6b6f7d',el:'light'},
 };
+const TOWN={x0:31,x1:47,y0:27,y1:41,cx:39,cy:34};   // town stays put; the world grows around it
 let grid=[], biomeMap=[], nodes=[], buildings=[], npcs=[], monsters=[], walk=[], props=[];
+// biome "seeds" (normalized) — gentle biomes hug the town, harsher ones sit far out.
+let BIOME_SEEDS=[];
+function buildBiomeSeeds(){ const S2=[
+  ['meadow',0.20,0.19],['meadow',0.31,0.10],['meadow',0.42,0.30],['meadow',0.16,0.50],
+  ['forest',0.10,0.34],['forest',0.34,0.56],['forest',0.50,0.20],['forest',0.24,0.70],
+  ['plains',0.30,0.45],['plains',0.55,0.50],['plains',0.62,0.28],['plains',0.46,0.66],
+  ['mountain',0.78,0.42],['mountain',0.55,0.80],['mountain',0.86,0.60],
+  ['tundra',0.10,0.74],['tundra',0.05,0.93],['tundra',0.27,0.88],
+  ['crystal',0.86,0.16],['crystal',0.93,0.74],['crystal',0.73,0.07],
+  ['ember',0.74,0.92],['ember',0.93,0.93],['ember',0.62,0.66] ];
+  BIOME_SEEDS=S2.map(s=>({b:s[0],x:s[1]*MW,y:s[2]*MH})); }
 function biomeAt(x,y){
-  if(y < 8+Math.sin(x*0.3)*2 && x>10 && x<66) return 'lake';
-  if(x>=31&&x<=47&&y>=27&&y<=41) return 'town';
-  if(x<26 && y<27) return 'tundra';
-  if(x>=52 && y<27) return 'crystal';
-  if(x<24 && y>=27) return 'forest';
-  if(x>=54 && y>=27 && y<52) return 'mountain';
-  if(x>=48 && y>=52) return 'ember';
-  if(y>=50 && x>=22 && x<48) return 'plains';
-  return 'meadow';
+  if(x>=TOWN.x0&&x<=TOWN.x1&&y>=TOWN.y0&&y<=TOWN.y1) return 'town';
+  if(y < 7+Math.sin(x*0.25)*2.5 && x>14 && x<70) return 'lake';   // Aether Lake, north of town
+  if(!BIOME_SEEDS.length) buildBiomeSeeds();
+  const n=(macroNoise(x*0.5,y*0.5)-0.5);                          // organic border warp
+  let best='meadow', bd=1e18;
+  for(const s of BIOME_SEEDS){ const dx=x-s.x,dy=y-s.y; const d=(dx*dx+dy*dy)*(1+n*0.6); if(d<bd){bd=d;best=s.b;} }
+  return best;
 }
 const inb=(x,y)=>x>=0&&y>=0&&x<MW&&y<MH;
 function genWorld(){
@@ -90,13 +100,15 @@ function genWorld(){
   function blob(cx,cy,rad,setter){const r=Math.ceil(rad);
     for(let y=Math.round(cy)-r;y<=Math.round(cy)+r;y++)for(let x=Math.round(cx)-r;x<=Math.round(cx)+r;x++){
     if(inb(x,y)&&Math.hypot(x-cx,y-cy)<=rad+R()*0.6) setter(x,y);}}
-  // frozen ponds (tundra)
-  [[10,15],[17,9],[7,21]].forEach(([x,y])=>blob(x,y,2,(ix,iy)=>{if(biomeMap[iy][ix]==='tundra'){grid[iy][ix]=T_ICE;walk[iy][ix]=0;}}));
-  // lava pools (ember)
-  [[60,61],[68,56],[55,67]].forEach(([x,y])=>blob(x,y,2,(ix,iy)=>{if(biomeMap[iy][ix]==='ember'){grid[iy][ix]=T_LAVA;walk[iy][ix]=0;}}));
-  // jagged impassable peaks / crystal spires (visual walls)
-  [[62,18],[70,34],[66,44]].forEach(([x,y])=>blob(x,y,1.6,(ix,iy)=>{if(biomeMap[iy][ix]==='mountain'&&R()<0.7)walk[iy][ix]=0;}));
-  [[60,12],[70,20],[66,8]].forEach(([x,y])=>blob(x,y,1.4,(ix,iy)=>{if(biomeMap[iy][ix]==='crystal'&&R()<0.6)walk[iy][ix]=0;}));
+  // scatter terrain features proportionally across the much larger map
+  function scatter(biome,n,rad,setter){ let placed=0,tries=0;
+    while(placed<n&&tries<n*60){ tries++; const x=(R()*MW)|0,y=(R()*MH)|0;
+      if(dist(x,y,TOWN.cx,TOWN.cy)<18)continue;                       // keep hazards away from the gates
+      if(biomeMap[y]&&biomeMap[y][x]===biome){ blob(x,y,rad+R()*1.1,setter); placed++; } } }
+  scatter('tundra',14,1.8,(ix,iy)=>{if(biomeMap[iy][ix]==='tundra'){grid[iy][ix]=T_ICE;walk[iy][ix]=0;}});   // frozen ponds
+  scatter('ember',14,1.8,(ix,iy)=>{if(biomeMap[iy][ix]==='ember'){grid[iy][ix]=T_LAVA;walk[iy][ix]=0;}});    // lava pools
+  scatter('mountain',18,1.6,(ix,iy)=>{if(biomeMap[iy][ix]==='mountain'&&R()<0.6)walk[iy][ix]=0;});           // impassable peaks
+  scatter('crystal',14,1.4,(ix,iy)=>{if(biomeMap[iy][ix]==='crystal'&&R()<0.55)walk[iy][ix]=0;});            // crystal spires
 
   // TOWN plaza paths + radiating roads from center (39,34)
   for(let y=27;y<=41;y++)for(let x=31;x<=47;x++){ if(inb(x,y)&&grid[y][x]!==T_WATER&&grid[y][x]!==T_DEEP)grid[y][x]=T_PATH; }
@@ -165,6 +177,17 @@ function genWorld(){
   ['tundra','ember'].forEach(bk=>{ let placed=0,tries=0;
     while(placed<3&&tries<5000){ tries++; const x=(R()*MW)|0,y=(R()*MH)|0;
       if(biomeMap[y]&&biomeMap[y][x]===bk&&walk[y][x]){ if(placeSpecial('bonfire',x,y,{biome:bk}))placed++; } } });
+
+  // explorable structures: caves (deep/harsh biomes) + abandoned hovels (settled biomes), each with a loot chest
+  function placeStructure(kind,name,biomes,count){ const w=3,h=2; let placed=0,tries=0;
+    while(placed<count&&tries<count*120){ tries++;
+      const x=3+(R()*(MW-w-6))|0, y=3+(R()*(MH-h-6))|0;
+      if(dist(x,y,TOWN.cx,TOWN.cy)<24)continue;
+      if(biomes.indexOf(biomeMap[y][x])<0)continue;
+      let ok=true; for(let j=0;j<=h&&ok;j++)for(let i=0;i<w&&ok;i++){ if(!walk[y+j]||!walk[y+j][x+i])ok=false; }
+      if(!ok)continue; addBuilding(x,y,w,h,kind,name); placed++; } }
+  placeStructure('cave','Hollow Cavern',['mountain','crystal','ember','tundra','forest'],12);
+  placeStructure('ruin','Abandoned Hovel',['meadow','plains','forest','tundra'],16);
 
   spawnMonsters();
   genProps();
@@ -323,7 +346,7 @@ function safeSpawn(cx,cy){
   return[cx,cy];
 }
 function monAtRaw(x,y){return monsters.find(m=>m.alive&&Math.round(m.x)===x&&Math.round(m.y)===y);}
-const MAPVER=3;
+const MAPVER=4;
 S.px=clamp(S.px,1,MW-2); S.py=clamp(S.py,1,MH-2);
 // relocate to town once on the new map, or if standing somewhere invalid
 if(S.mapVer!==MAPVER||!walk[S.py]||!walk[S.py][S.px]){ const s=safeSpawn(39,43); S.px=s[0];S.py=s[1]; S.mapVer=MAPVER; }
@@ -949,8 +972,28 @@ function constellation(g,cx,cy,col){ g.strokeStyle=col;g.lineWidth=0.7;g.globalA
   g.beginPath();g.moveTo(cx-5,cy-3);g.lineTo(cx-1,cy+1);g.lineTo(cx+4,cy-2);g.lineTo(cx+2,cy+4);g.stroke();
   g.globalAlpha=0.9;g.fillStyle=col;[[ -5,-3],[-1,1],[4,-2],[2,4]].forEach(p=>{g.beginPath();g.arc(cx+p[0],cy+p[1],0.9,0,7);g.fill();});
   g.globalAlpha=1; }
+function drawWildStructure(b,px,py,w,h,k){
+  const cx=px+w/2, by=py+h-2, looted=S.looted&&S.looted[k+'@'+b.x+','+b.y];
+  ctx.fillStyle='rgba(0,0,0,.26)';ctx.beginPath();ctx.ellipse(cx,by,w*0.55,7,0,0,7);ctx.fill();
+  if(k==='cave'){
+    ctx.fillStyle='#4a463f';ctx.beginPath();ctx.moveTo(px-2,by);ctx.quadraticCurveTo(px+w*0.1,py-6,cx,py-9);ctx.quadraticCurveTo(px+w*0.9,py-6,px+w+2,by);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#5b564d';ctx.beginPath();ctx.moveTo(px+4,by-2);ctx.quadraticCurveTo(px+w*0.25,py-1,cx-3,py-3);ctx.quadraticCurveTo(cx-1,py-3,cx,py-1);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#0a0a0e';ctx.beginPath();ctx.moveTo(cx-9,by);ctx.lineTo(cx-9,by-12);ctx.quadraticCurveTo(cx,by-22,cx+9,by-12);ctx.lineTo(cx+9,by);ctx.closePath();ctx.fill();
+    const g=0.4+0.3*Math.sin(now*0.004+b.x);drawGlow(ctx,cx,by-9,'#6fd0ff',8*g,0.5);
+    ctx.fillStyle='#3a3630';ctx.fillRect(cx-13,by-5,3,5);ctx.fillRect(cx+10,by-4,3,4);
+    if(!looted){ ctx.fillStyle='rgba(255,232,150,.92)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText('⌖ Cavern',cx,py-12); }
+  } else {
+    ctx.fillStyle='#6a6358';ctx.fillRect(px+2,py+h*0.4,w-4,h*0.6);
+    ctx.fillStyle='#574f45';for(let i=0;i<5;i++){const bx=px+4+i*((w-8)/5);ctx.fillRect(bx,py+h*0.4-(i%2?6:2),(w-8)/5-1,6);}
+    ctx.fillStyle='#15110c';ctx.fillRect(cx-6,by-12,12,12);
+    ctx.fillStyle='rgba(110,170,90,.4)';ctx.beginPath();ctx.arc(px+5,py+h*0.5,3,0,7);ctx.arc(px+w-6,py+h*0.7,2.4,0,7);ctx.fill();
+    ctx.strokeStyle='#4a443c';ctx.lineWidth=1;ctx.strokeRect(px+2,py+h*0.4,w-4,h*0.6);
+    if(!looted){ ctx.fillStyle='rgba(255,232,150,.92)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText('⌖ Ruins',cx,py-4); }
+  }
+}
 function drawBuilding(b){
   const px=b.x*TILE-cam.x, py=b.y*TILE-cam.y, w=b.w*TILE, h=b.h*TILE, k=b.kind;
+  if(k==='cave'||k==='ruin'){ drawWildStructure(b,px,py,w,h,k); return; }
   const st=BSTYLE[k]||BSTYLE.house, night=dayTint().dark>0.25, cx=px+w/2;
   const wallTop=py+h*0.34, hh=thash(b.x,b.y);
   // ground shadow + stone foundation
@@ -1501,6 +1544,31 @@ function drawMinimap(){
   ctx.restore();
 }
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+// ---- RECALL HOME — warp to the Warden Lodge with a little fade+swirl ----
+function teleportHome(){
+  if(interior||fadeBusy()||player.busy)return;
+  const lodge=buildings.find(b=>b.kind==='house'); let hx,hy;
+  if(lodge){ hx=lodge.door.x; hy=lodge.door.y+1; if(!inb(hx,hy)||!walk[hy][hx]){ hx=lodge.door.x; hy=lodge.door.y; } }
+  else { const s=safeSpawn(TOWN.cx,TOWN.cy+9); hx=s[0]; hy=s[1]; }
+  const wx=player.px*TILE+TILE/2, wy=player.py*TILE+TILE-10;          // warp-out swirl at current spot
+  burstRing(wx,wy,'#7ad0ff',22,140); burstRing(wx,wy-8,'#bfe9ff',14,72); burstMotes(wx,wy-8,'#cfe8ff',10);
+  sfx('summon'); addShake(3);
+  startFade(()=>{                                                     // at full-fade: move + arrival swirl
+    player.px=player.tx=hx; player.py=player.ty=hy; S.px=hx; S.py=hy; player.path=[]; player.moving=false;
+    updateCam();
+    const h2x=hx*TILE+TILE/2, h2y=hy*TILE+TILE-10;
+    burstRing(h2x,h2y,'#7ad0ff',22,120); burstMotes(h2x,h2y-8,'#cfe8ff',12);
+    visitBiome(hx,hy); save();
+  });
+  toast('✦ Recalled to Skyhaven Lodge');
+}
+function paintHomeIcon(){ const c=document.getElementById('homeic'); if(!c)return; const g=c.getContext('2d');
+  g.clearRect(0,0,c.width,c.height); g.save(); g.translate(c.width/2,c.height/2+3); g.scale(c.width/26,c.height/26);
+  g.fillStyle='#caa15a';g.beginPath();g.moveTo(-9,-1);g.lineTo(0,-10);g.lineTo(9,-1);g.closePath();g.fill();   // roof
+  g.fillStyle='#cdb78a';g.fillRect(-6.5,-1,13,9);                                                              // body
+  g.fillStyle='#5a4128';g.fillRect(-2.2,2,4.4,6);                                                              // door
+  g.fillStyle='#6fd0ff';star4(g,0,-12,2.6,1);                                                                  // celestial star
+  g.restore(); }
 function loop(){
   now=performance.now(); let dt=(now-last)/1000; last=now; dt=Math.min(dt,0.05);
   updateFade(dt);
@@ -1886,6 +1954,7 @@ function paintResIcons(){ $$('#res canvas[data-ic]').forEach(c=>{ const g=c.getC
    DOCK PANELS
    =================================================================== */
 $$('.dbtn').forEach(b=>b.onclick=()=>openPanel(b.dataset.p));
+{ const hb=document.getElementById('homebtn'); if(hb)hb.addEventListener('pointerdown',e=>{ e.preventDefault(); maybeStartAudio(); teleportHome(); }); }
 function openPanel(p){
   sfx('ui');
   if(p==='bag')panelBag();
@@ -2502,6 +2571,12 @@ const INTERIORS={
   house:{name:'Warden Lodge',floor:'#43392f',floor2:'#3a3127',wall:'#26201a',rug:'#3a5a8a',accent:'#ffd479',
     station:{x:4,y:1,icon:'🛏',label:'Rest',action:'rest'}, deco:[{x:1,y:1,t:'shelf'},{x:7,y:2,t:'barrel'}],
     npc:null},
+  cave:{name:'Hollow Cavern',floor:'#262630',floor2:'#1f1f28',wall:'#121218',rug:'#2a3a52',accent:'#7ad0ff',
+    station:{x:4,y:1,icon:'📦',label:'Chest',action:'chest'}, deco:[{x:1,y:1,t:'crystal'},{x:7,y:2,t:'crystal'},{x:7,y:1,t:'barrel'}],
+    npc:null},
+  ruin:{name:'Abandoned Hovel',floor:'#3a352c',floor2:'#322d25',wall:'#1d1812',rug:'#5a4a36',accent:'#ffd479',
+    station:{x:4,y:1,icon:'📦',label:'Old Chest',action:'chest'}, deco:[{x:1,y:1,t:'barrel'},{x:7,y:1,t:'shelf'},{x:2,y:2,t:'barrel'}],
+    npc:null},
 };
 let interior=null, pendingIn=null;
 let fade={a:0,dir:0,mid:null};
@@ -2557,7 +2632,29 @@ function doInteriorAction(act){
   else if(act==='market')talkNPC({name:interior.def.name,role:'market'});
   else if(act==='codex')panelCodex();
   else if(act==='rest'){ toast('You rest at the Lodge. The Warden is renewed. 🛏'); }
+  else if(act==='chest'){ lootChest(); }
   else if(act==='npc'&&interior.npc)talkNPC({name:interior.npc.name,role:interior.npc.role});
+}
+function lootChest(){
+  const b=interior&&interior.b; const id=b?(b.kind+'@'+b.x+','+b.y):'chest@?';
+  if(!S.looted)S.looted={};
+  if(S.looted[id]){ toast('The chest has already been emptied.'); return; }
+  S.looted[id]=1;
+  const lv=combatLevel(), far=b?dist(b.x,b.y,TOWN.cx,TOWN.cy):30;
+  const tier=Math.max(1,Math.min(4, 1+Math.floor(far/38)));               // farther chests = better gear
+  const pool=Object.keys(GEAR).filter(k=>GEAR[k].tier<=tier&&!/^(w_tempest|w_infernal|a_glacial|r_thornheart|r_voidheart)$/.test(k));
+  const gear=pool.length?pool[(Math.random()*pool.length)|0]:null;
+  const astral=50+lv*14+(Math.random()*80|0), ore=10+(Math.random()*18|0), wood=10+(Math.random()*18|0);
+  const shard=Math.random()<0.55?2+(Math.random()*5|0):0;
+  if(gear){ S.gear.push(gear); S.bestiary.gear[gear]=true; }
+  S.res.astral+=astral; S.res.ore+=ore; S.res.wood+=wood; S.res.shard+=shard; save(); updateHUD();
+  sfx('quest');
+  const rows=[`<div class="vrow"><span style="color:var(--gold)">◈</span> <b>+${astral}</b> <span class="muted">Astral</span></div>`,
+    `<div class="vrow"><span style="color:#d9a05b">⛁</span> <b>+${ore}</b> &nbsp; <span style="color:#9bd66a">🪵</span> <b>+${wood}</b></div>`];
+  if(shard)rows.push(`<div class="vrow"><span style="color:var(--rare)">✦</span> <b>+${shard}</b> <span class="muted">Starshards</span></div>`);
+  if(gear)rows.push(`<div class="vrow"><span style="color:${RAR_T(GEAR[gear].tier)}">⚔</span> <b>${GEAR[gear].name}</b> <span class="muted">(in your Bag)</span></div>`);
+  modal(`<h2 class="gold center">✦ Treasure Unearthed</h2><div class="card center">${rows.join('')}</div>
+    <button class="btn gold" onclick="closeModal()">Take it all</button>`);
 }
 function interiorTap(sx,sy){
   const I=interior; if(!I||fadeBusy())return;
@@ -2628,6 +2725,8 @@ function drawInteriorDeco(d,px,py,it,def){
   ctx.textAlign='center';ctx.textBaseline='middle';
   if(d.t==='furnace'){ ctx.fillStyle='#2a2018';ctx.fillRect(px+it*0.2,py+it*0.3,it*0.6,it*0.6);
     ctx.fillStyle='rgba(255,140,50,'+(0.5+0.3*Math.sin(now*0.006))+')';ctx.beginPath();ctx.arc(px+it/2,py+it*0.62,it*0.18,0,7);ctx.fill(); }
+  else if(d.t==='crystal'){ const g=0.5+0.5*Math.sin(now*0.004+px); drawGlow(ctx,px+it/2,py+it*0.55,'#7ad0ff',it*0.3*g,0.7);
+    ctx.fillStyle='#8fdcff';for(let k=0;k<3;k++){ctx.beginPath();ctx.moveTo(px+it*(0.4+k*0.12),py+it*0.8);ctx.lineTo(px+it*(0.46+k*0.12),py+it*(0.35-k*0.05));ctx.lineTo(px+it*(0.52+k*0.12),py+it*0.8);ctx.closePath();ctx.fill();} }
   else { const ic={barrel:'🛢',candle:'🕯',shelf:'📚'}[d.t]||'📦';
     ctx.font=Math.round(it*0.55)+'px serif';ctx.fillStyle='#fff';ctx.fillText(ic,px+it/2,py+it*0.55); }
 }
@@ -3026,6 +3125,7 @@ checkUnlocks();          // offer starter quests
 updateQuestTracker();
 paintDock();
 paintResIcons();
+paintHomeIcon();
 updateHUD();
 welcome();
 requestAnimationFrame(loop);
