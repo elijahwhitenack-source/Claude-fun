@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.fps.config.js",
+    "build:2d": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^5.4.0",
     "vite-plugin-singlefile": "^2.0.3"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
   }
 }

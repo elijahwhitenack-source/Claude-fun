@@ -378,3 +378,15 @@ Authored **`VISUAL_ARCHITECTURE_PLAN.md`** (senior analysis): verdict = stay **C
 
 ### Verified
 - Clean build, no console errors, `__bench` 0.5–1.1 ms across town / far ember / cave-region. Screenshots: huge varied biome map on the minimap; cave entrances in the wild; cave interior with chest; "Treasure Unearthed" loot (gave an Aetherflux Staff + resources); recall-home returned the warden from the far map to the lodge. Temp dev hooks removed.
+
+---
+
+## 3D First-Person Build (fresh) — 2026-06-04
+
+User pivot: improve graphics/art, **smaller map, first person**. Chosen: **free-look 3D (Three.js), fresh build, low-poly × Minecraft blend, keep the 2D battle panel.** Built as a separate page so the live 2D game is untouched.
+
+- **New entry `fps.html` + `src3d/main.js`** using **Three.js** (npm `three` 0.184). Two-pass build: `vite build` (2D single-file → `dist/index.html`) **then** `vite build --config vite.fps.config.js` (3D single-file → `dist/fps.html`, Three inlined, ~517 KB / 132 KB gz). Live at **`/fps.html`**.
+- **Voxel/low-poly world:** small contained **island** (72×72 grid with radial falloff), solid voxel columns via **InstancedMesh per palette colour** (cheap), value-noise heightmap, biome colouring (meadow/forest/stone/snow/sand), translucent water plane, blocky Minecraft-style trees, emissive celestial **crystals**, drifting cloud cubes, sky + fog + hemisphere/sun lighting.
+- **First-person controls:** desktop **pointer-lock + WASD/arrows + mouse-look + Space jump**; mobile **left virtual joystick + right-drag look + Jump/✦ FABs**. Gravity + jump, terrain-follow collision with **cliff-blocking** (max step), map-edge clamp, head-bob, biome name-flash HUD, crosshair.
+- Verified in-engine: walkable island renders (screenshots: forest spawn with blocky trees over water; tundra peak vista). No console errors, WebGL active.
+- **Next:** port systems — gathering nodes, NPCs/town, day-night, and wire walk-into-enemy → the existing 2D battle panel; reuse save/inventory/quest logic.
