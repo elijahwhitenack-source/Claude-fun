@@ -390,3 +390,19 @@ User pivot: improve graphics/art, **smaller map, first person**. Chosen: **free-
 - **First-person controls:** desktop **pointer-lock + WASD/arrows + mouse-look + Space jump**; mobile **left virtual joystick + right-drag look + Jump/✦ FABs**. Gravity + jump, terrain-follow collision with **cliff-blocking** (max step), map-edge clamp, head-bob, biome name-flash HUD, crosshair.
 - Verified in-engine: walkable island renders (screenshots: forest spawn with blocky trees over water; tundra peak vista). No console errors, WebGL active.
 - **Next:** port systems — gathering nodes, NPCs/town, day-night, and wire walk-into-enemy → the existing 2D battle panel; reuse save/inventory/quest logic.
+
+---
+
+## Pivot → Isometric Dungeon Crawler — 2026-06-04
+
+User pivoted the 3D build again: **not first-person → over-the-top (isometric ¾) top-down roguelike dungeon crawler.** Chosen: 3D overhead keeping the voxel look, **isometric ¾** camera, **tiny hub → procedural (roguelike) dungeon floors**, **joystick/WASD movement (no tap-to-move)**, combat = simple auto-resolve for now (full 2D panel port later). Reworked `fps.html` + `src3d/main.js` (same `/fps.html` URL + two-pass build).
+
+> **Drive note:** the NVMe volume remounted **without the space** — project is now at `/Volumes/ElijahNVMe/claude-fun` (was `/Volumes/Elijah NVMe/…`). Fixed the preview bridge `.claude/launch.json` `--prefix` on the TOSHIBA stub accordingly.
+
+- **Iso camera:** `OrthographicCamera` at a fixed ¾ offset (13,16,13), smooth-follows the hero; frustum sized by viewport. Camera-relative movement axes (`FWD`/`RIGHT`) so the joystick maps to screen directions.
+- **Voxel hero + controls:** blocky character (cloak/head/hair + facing nub), twin-stick movement (mobile left thumbstick + desktop WASD/arrows), circle-vs-tile collision (slides along walls), rotates to face heading, head-bob, hero point-light. **No tap-to-move.**
+- **Tiny hub (Skyhaven):** small walled green room, decorative huts (no enemies), a glowing **portal** → dungeon.
+- **Procedural dungeon (roguelike):** random non-overlapping rooms + L-corridors carved into a 40×40 grid; instanced floor/wall voxels (walls only where adjacent to floor); **stairs-down** in the farthest room to descend deeper (harder each floor), a **treasure chest** (one-time gold), and roaming **enemies** that chase on aggro.
+- **Combat/loop:** bump an enemy → battle overlay (auto-resolve exchange, HP persists through the floor, gold/loot on win); death → wake in the hub keeping spoils. Interact (E / ✦) on portal/stairs/chest. Depth + gold + HP HUD; fade transitions; gold saved to `localStorage('astrari3d')`.
+- Verified in-engine: iso hub renders with hero + portal + huts; WASD moves the hero with camera-follow + wall collision; procedural dungeon floor renders (rooms/corridors). No console errors. Builds to `dist/fps.html` (~524 KB / 135 KB gz).
+- **Next:** port the polished 2D battle panel (champions/elements) into the crawler; add hub NPCs (forge/shop to spend gold), floor bosses, minimap, and juice.

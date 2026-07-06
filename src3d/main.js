@@ -1,285 +1,288 @@
-// ASTRARI 3D — first-person voxel/low-poly world (Three.js).
-// Fresh first-person build; the 2D game stays at index.html.
+// ASTRARI — isometric ¾ top-down roguelike dungeon crawler (Three.js).
+// Tiny safe hub → procedural dungeon floors. Joystick/WASD movement (no tap-to-move).
 import * as THREE from 'three';
 
+// ---------- renderer / scene ----------
 const cv = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-const SKY = new THREE.Color(0x8ecaff);
-renderer.setClearColor(SKY);
-
 const scene = new THREE.Scene();
-scene.background = SKY.clone();
-scene.fog = new THREE.Fog(SKY.clone(), 38, 120);
+scene.background = new THREE.Color(0x0e141f);
+scene.fog = new THREE.Fog(0x0e141f, 22, 48);
 
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, 400);
-// player rig: yawObject (Y rotation) holds the camera (which gets X pitch)
-const yaw = new THREE.Object3D();
-scene.add(yaw);
-yaw.add(camera);
-const EYE = 1.7;
+// isometric orthographic follow camera
+let viewSize = 10;
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
+const CAM_OFF = new THREE.Vector3(13, 16, 13);         // fixed ¾ iso angle
+function setCamFrustum(){ const a = innerWidth / innerHeight;
+  camera.left = -viewSize * a; camera.right = viewSize * a; camera.top = viewSize; camera.bottom = -viewSize;
+  camera.updateProjectionMatrix(); }
+// camera-relative ground axes (movement mapped to screen)
+const FWD = new THREE.Vector3(-CAM_OFF.x, 0, -CAM_OFF.z).normalize();   // "up/away on screen"
+const RIGHT = new THREE.Vector3(FWD.z, 0, -FWD.x).normalize();           // screen-right
 
-// ---------- lighting ----------
-const hemi = new THREE.HemisphereLight(0xbfe0ff, 0x4a6638, 0.95); scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff1d4, 1.05); sun.position.set(0.5, 1, 0.3).multiplyScalar(60); scene.add(sun);
-scene.add(new THREE.AmbientLight(0x6a7a90, 0.25));
+// lighting
+scene.add(new THREE.HemisphereLight(0x9fc0ff, 0x2a3040, 0.85));
+const sun = new THREE.DirectionalLight(0xfff0d8, 0.95); sun.position.set(8, 18, 6); scene.add(sun);
+scene.add(new THREE.AmbientLight(0x5a6a86, 0.35));
 
-// ---------- value noise ----------
-function hash(x, z){ const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); }
-function vnoise(x, z){
-  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
-  const a = hash(xi, zi), b = hash(xi + 1, zi), c = hash(xi, zi + 1), d = hash(xi + 1, zi + 1);
-  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
-  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
-}
-function fbm(x, z){ return vnoise(x * 0.045, z * 0.045) * 9 + vnoise(x * 0.12, z * 0.12) * 3 + vnoise(x * 0.3, z * 0.3) * 1; }
-
-// ---------- world ----------
-const N = 72, HALF = N / 2, SEA = 2, BASE = -6;
-const heights = [];           // top surface y per column (integer)
-const biome = [];             // biome id per column
-function genHeights(){
-  for (let x = 0; x < N; x++){ heights[x] = []; biome[x] = [];
-    for (let z = 0; z < N; z++){
-      // island falloff so the map is a contained isle (smaller, focused world)
-      const dx = (x - HALF) / HALF, dz = (z - HALF) / HALF;
-      const edge = Math.max(0, 1 - (dx * dx + dz * dz) * 1.05);
-      let h = fbm(x, z) * edge - (1 - edge) * 8;
-      h = Math.round(h);
-      heights[x][z] = h;
-      biome[x][z] = h >= 7 ? 'snow' : h >= 5 ? 'stone' : h <= SEA ? 'sand' : h >= 4 ? 'forest' : 'meadow';
-    }
-  }
-}
-genHeights();
-
-function colAt(wx, wz){ // grid col from world coords
-  const gx = Math.round(wx + HALF), gz = Math.round(wz + HALF);
-  if (gx < 0 || gz < 0 || gx >= N || gz >= N) return null;
-  return [gx, gz];
-}
-function heightAt(wx, wz){ const c = colAt(wx, wz); return c ? heights[c[0]][c[1]] : BASE; }
-function biomeAt(wx, wz){ const c = colAt(wx, wz); return c ? biome[c[0]][c[1]] : 'meadow'; }
-
-// material palette (flat-shaded, low-poly)
-const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.96, ...o });
-const PAL = {
-  meadow: M(0x5cb450), meadow2: M(0x4c9d44), forest: M(0x2f7d40), stone: M(0x8b8e93),
-  snow: M(0xeef5fc), sand: M(0xe4d49c), dirt: M(0x7a5a36),
+// ---------- materials ----------
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.95, ...o });
+const MAT = {
+  hubFloor: M(0x4c9d47), hubFloor2: M(0x428a3e), hubWall: M(0x6b6f7d), hubTrim: M(0xffce6a),
+  dFloor: M(0x3a3550), dFloor2: M(0x322e47), dWall: M(0x4a4560), dWallTop: M(0x5a5570),
+  stairs: M(0x7ad0ff, { emissive: 0x2a6a9a, emissiveIntensity: 0.5 }),
+  chest: M(0x8a5a2a), chestLid: M(0xffce6a),
+  heroSkin: M(0xf0d0a8), heroCloak: M(0x3a6f8a), heroTrim: M(0xffd479), heroHair: M(0x2a3a52),
+  enemy: M(0x8a3bd4, { emissive: 0x3a1a6a, emissiveIntensity: 0.4 }), enemyEye: M(0x9be8ff, { emissive: 0x6fd0ff, emissiveIntensity: 1 }),
+  portal: M(0x8a6cff, { emissive: 0x5a3bd4, emissiveIntensity: 0.9 }),
 };
 const box = new THREE.BoxGeometry(1, 1, 1);
 const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
-
-// build solid voxel columns as InstancedMesh per palette colour (cheap, few draw calls)
-function buildTerrain(){
-  const groups = {};
-  for (let x = 0; x < N; x++) for (let z = 0; z < N; z++){
-    const h = heights[x][z]; let key = biome[x][z];
-    if (key === 'meadow') key = ((x + z) & 1) ? 'meadow' : 'meadow2';
-    (groups[key] || (groups[key] = [])).push([x, z, h]);
-  }
-  for (const key in groups){
-    const list = groups[key], inst = new THREE.InstancedMesh(box, PAL[key], list.length);
-    inst.frustumCulled = false;
-    for (let i = 0; i < list.length; i++){
-      const [x, z, h] = list[i], colH = h - BASE;
-      _p.set(x - HALF, (h + BASE) / 2 + 0.5, z - HALF);
-      _s.set(1, colH, 1);
-      _m.compose(_p, _q, _s); inst.setMatrixAt(i, _m);
-    }
-    inst.instanceMatrix.needsUpdate = true; scene.add(inst);
-  }
+function instanced(positions, mat, y, sy){
+  const inst = new THREE.InstancedMesh(box, mat, Math.max(1, positions.length)); inst.frustumCulled = false;
+  for (let i = 0; i < positions.length; i++){ _p.set(positions[i][0] + 0.5, y, positions[i][1] + 0.5); _s.set(1, sy, 1);
+    _m.compose(_p, _q, _s); inst.setMatrixAt(i, _m); }
+  inst.count = positions.length; inst.instanceMatrix.needsUpdate = true; return inst;
 }
-buildTerrain();
 
-// water plane
-const water = new THREE.Mesh(new THREE.PlaneGeometry(N + 8, N + 8),
-  new THREE.MeshStandardMaterial({ color: 0x2f7fd0, transparent: true, opacity: 0.82, roughness: 0.4, metalness: 0.1 }));
-water.rotation.x = -Math.PI / 2; water.position.y = SEA + 0.55; scene.add(water);
-
-// trees (blocky trunk + stacked leaf cubes)
-const trunkMat = M(0x6b4a2a), leafMat = M(0x3f8f4a), leafMat2 = M(0x57b260);
-const decor = new THREE.Group(); scene.add(decor);
-const rng = (() => { let s = 1337; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; })();
-const crystals = [];
-function placeDecor(){
-  for (let i = 0; i < 90; i++){
-    const x = 2 + (rng() * (N - 4) | 0), z = 2 + (rng() * (N - 4) | 0), h = heights[x][z], b = biome[x][z];
-    if (b !== 'meadow' && b !== 'forest') continue;
-    const wx = x - HALF, wz = z - HALF;
-    const tr = new THREE.Mesh(box, trunkMat); tr.scale.set(0.5, 2.2, 0.5); tr.position.set(wx, h + 1.1, wz); decor.add(tr);
-    const tiers = b === 'forest' ? 4 : 3;
-    for (let k = 0; k < tiers; k++){ const lf = new THREE.Mesh(box, (k & 1) ? leafMat2 : leafMat);
-      const sc = 2.5 - k * 0.5; lf.scale.set(sc, 1, sc); lf.position.set(wx, h + 2.4 + k * 0.85, wz); decor.add(lf); }
-  }
-  // celestial crystals (ASTRARI identity) — emissive, gently bobbing
-  const crMat = new THREE.MeshStandardMaterial({ color: 0x8a6cff, emissive: 0x5a3bd4, emissiveIntensity: 0.7, flatShading: true, roughness: 0.3 });
-  for (let i = 0; i < 10; i++){
-    const x = 4 + (rng() * (N - 8) | 0), z = 4 + (rng() * (N - 8) | 0), h = heights[x][z];
-    if (h <= SEA) continue;
-    const cr = new THREE.Mesh(new THREE.OctahedronGeometry(0.85), crMat);
-    cr.scale.y = 1.8; cr.position.set(x - HALF, h + 1.6, z - HALF); decor.add(cr); crystals.push(cr);
-  }
-}
-placeDecor();
-
-// clouds
-const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 1, transparent: true, opacity: 0.92 });
-const clouds = new THREE.Group(); scene.add(clouds);
-for (let i = 0; i < 9; i++){ const c = new THREE.Mesh(box, cloudMat);
-  c.scale.set(4 + rng() * 6, 1.4, 3 + rng() * 4); c.position.set((rng() - 0.5) * 90, 22 + rng() * 8, (rng() - 0.5) * 90); clouds.add(c); }
-
-// ---------- player ----------
-const player = { x: 0, z: 0, y: 0, vy: 0, grounded: false, pitch: 0, bob: 0 };
-// spawn at the lush meadow/forest column nearest the centre (inviting opening view)
-(function spawn(){ let best = 1e9, bx = HALF, bz = HALF;
-  for (let x = HALF - 14; x < HALF + 14; x++) for (let z = HALF - 14; z < HALF + 14; z++){
-    const b = biome[x][z]; if ((b === 'meadow' || b === 'forest') && heights[x][z] > SEA){
-      const d = (x - HALF) ** 2 + (z - HALF) ** 2; if (d < best){ best = d; bx = x; bz = z; } } }
-  player.x = bx - HALF; player.z = bz - HALF; player.y = heights[bx][bz] + EYE;
+// ---------- hero ----------
+const hero = { x: 0, z: 0, dir: 0, hp: 60, maxhp: 60, atk: 14, gold: 0, group: new THREE.Group() };
+(function buildHero(){
+  const g = hero.group;
+  const legs = new THREE.Mesh(box, MAT.heroCloak); legs.scale.set(0.42, 0.42, 0.42); legs.position.y = 0.22; g.add(legs);
+  const body = new THREE.Mesh(box, MAT.heroCloak); body.scale.set(0.52, 0.55, 0.4); body.position.y = 0.66; g.add(body);
+  const trim = new THREE.Mesh(box, MAT.heroTrim); trim.scale.set(0.54, 0.12, 0.42); trim.position.y = 0.5; g.add(trim);
+  const head = new THREE.Mesh(box, MAT.heroSkin); head.scale.set(0.42, 0.42, 0.42); head.position.y = 1.12; g.add(head);
+  const hair = new THREE.Mesh(box, MAT.heroHair); hair.scale.set(0.46, 0.2, 0.46); hair.position.y = 1.32; g.add(hair);
+  const nose = new THREE.Mesh(box, MAT.heroSkin); nose.scale.set(0.12, 0.12, 0.14); nose.position.set(0, 1.1, 0.24); g.add(nose);
+  scene.add(g);
 })();
-// place the rig at spawn immediately (so the world is visible before pointer-lock)
-player.pitch = -0.26;
-yaw.position.set(player.x, player.y, player.z);
-camera.rotation.x = player.pitch;
+const heroLight = new THREE.PointLight(0xffe6b0, 0.9, 12, 2); scene.add(heroLight);
 
-// ---------- controls ----------
+// ---------- world state ----------
+let grid = [], GW = 0, GH = 0, mode = 'hub', depth = 0;
+let levelGroup = new THREE.Group(); scene.add(levelGroup);
+let features = [];   // {type,gx,gz,mesh,...}
+let enemies = [];    // {name,x,z,hp,maxhp,atk,mesh,alive}
+const rng = (() => { let s = 20260604 >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; })();
+
+function clearLevel(){
+  scene.remove(levelGroup);
+  levelGroup.traverse(o => { if (o.geometry && o.geometry !== box) o.geometry.dispose(); });
+  levelGroup = new THREE.Group(); scene.add(levelGroup);
+  for (const en of enemies) scene.remove(en.mesh);
+  features = []; enemies = [];
+}
+function walkable(wx, wz){ const gx = Math.floor(wx), gz = Math.floor(wz);
+  return gx >= 0 && gz >= 0 && gx < GW && gz < GH && grid[gz][gx] === 1; }
+
+// ---------- HUB ----------
+function buildHub(){
+  clearLevel(); mode = 'hub'; depth = 0;
+  GW = 22; GH = 22; grid = [];
+  const floors = [], walls = [];
+  for (let z = 0; z < GH; z++){ grid[z] = [];
+    for (let x = 0; x < GW; x++){ const edge = x === 0 || z === 0 || x === GW - 1 || z === GH - 1;
+      grid[z][x] = edge ? 0 : 1; (edge ? walls : floors).push([x, z]); } }
+  levelGroup.add(instanced(floors.filter((_, i) => i % 2 === 0), MAT.hubFloor, -0.25, 0.5));
+  levelGroup.add(instanced(floors.filter((_, i) => i % 2 === 1), MAT.hubFloor2, -0.25, 0.5));
+  levelGroup.add(instanced(walls, MAT.hubWall, 1.0, 2.6));
+  const hut = (gx, gz, col) => { const b = new THREE.Mesh(box, M(col)); b.scale.set(2.4, 2.2, 2.4); b.position.set(gx + 0.5, 1.1, gz + 0.5); levelGroup.add(b);
+    const roof = new THREE.Mesh(box, MAT.hubTrim); roof.scale.set(2.9, 0.5, 2.9); roof.position.set(gx + 0.5, 2.35, gz + 0.5); levelGroup.add(roof);
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) if (grid[gz + j]) grid[gz + j][gx + i] = 0; };
+  hut(4, 4, 0x8a5a3a); hut(15, 4, 0x5a5a8a); hut(4, 15, 0x4a7a5a);
+  const px = 15, pz = 15;
+  const portal = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.28, 8, 20), MAT.portal); portal.position.set(px + 0.5, 1.2, pz + 0.5);
+  levelGroup.add(portal); features.push({ type: 'portal', gx: px, gz: pz, mesh: portal });
+  const pl = new THREE.PointLight(0x8a6cff, 1.4, 10, 2); pl.position.set(px + 0.5, 1.4, pz + 0.5); levelGroup.add(pl);
+  hero.x = GW / 2; hero.z = GH / 2 + 3; hero.hp = hero.maxhp; updateHp();
+  setFloorName('Skyhaven', 'the safe hub — no enemies'); syncCam(true);
+}
+
+// ---------- PROCEDURAL DUNGEON ----------
+function genDungeon(d){
+  clearLevel(); mode = 'dungeon'; depth = d;
+  GW = 40; GH = 40; grid = [];
+  for (let z = 0; z < GH; z++) grid[z] = new Array(GW).fill(0);
+  const rooms = [], nRooms = 6 + Math.min(6, d);
+  for (let i = 0; i < nRooms * 4 && rooms.length < nRooms; i++){
+    const w = 5 + (rng() * 5 | 0), h = 5 + (rng() * 5 | 0);
+    const x = 1 + (rng() * (GW - w - 2) | 0), z = 1 + (rng() * (GH - h - 2) | 0);
+    if (rooms.some(r => x < r.x + r.w + 1 && x + w + 1 > r.x && z < r.z + r.h + 1 && z + h + 1 > r.z)) continue;
+    rooms.push({ x, z, w, h, cx: x + (w >> 1), cz: z + (h >> 1) });
+    for (let zz = z; zz < z + h; zz++) for (let xx = x; xx < x + w; xx++) grid[zz][xx] = 1;
+  }
+  const carveH = (x0, x1, z) => { for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) grid[z][x] = 1; };
+  const carveV = (z0, z1, x) => { for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) grid[z][x] = 1; };
+  for (let i = 1; i < rooms.length; i++){ const a = rooms[i - 1], b = rooms[i];
+    if (rng() < 0.5){ carveH(a.cx, b.cx, a.cz); carveV(a.cz, b.cz, b.cx); } else { carveV(a.cz, b.cz, a.cx); carveH(a.cx, b.cx, b.cz); } }
+  const floors1 = [], floors2 = [], walls = [], wtops = [];
+  for (let z = 0; z < GH; z++) for (let x = 0; x < GW; x++){
+    if (grid[z][x] === 1){ ((x + z) & 1 ? floors2 : floors1).push([x, z]); }
+    else { let adj = false; for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]){
+        const nx = x + dx, nz = z + dz; if (nx >= 0 && nz >= 0 && nx < GW && nz < GH && grid[nz][nx] === 1){ adj = true; break; } }
+      if (adj){ walls.push([x, z]); wtops.push([x, z]); } } }
+  levelGroup.add(instanced(floors1, MAT.dFloor, -0.25, 0.5), instanced(floors2, MAT.dFloor2, -0.25, 0.5));
+  levelGroup.add(instanced(walls, MAT.dWall, 1.0, 2.6), instanced(wtops, MAT.dWallTop, 2.35, 0.3));
+  const first = rooms[0]; hero.x = first.cx + 0.5; hero.z = first.cz + 0.5;
+  let far = rooms[rooms.length - 1] || first, best = -1;
+  for (const r of rooms){ const dd = (r.cx - first.cx) ** 2 + (r.cz - first.cz) ** 2; if (dd > best){ best = dd; far = r; } }
+  const st = new THREE.Mesh(box, MAT.stairs); st.scale.set(1.4, 0.5, 1.4); st.position.set(far.cx + 0.5, 0.1, far.cz + 0.5);
+  levelGroup.add(st); features.push({ type: 'stairs', gx: far.cx, gz: far.cz, mesh: st });
+  const sl = new THREE.PointLight(0x6fd0ff, 1.1, 9, 2); sl.position.set(far.cx + 0.5, 1.2, far.cz + 0.5); levelGroup.add(sl);
+  if (rooms.length > 2){ const cr = rooms[1 + (rng() * (rooms.length - 2) | 0)];
+    const ch = new THREE.Group(); const base = new THREE.Mesh(box, MAT.chest); base.scale.set(0.8, 0.55, 0.6); base.position.y = 0.28;
+    const lid = new THREE.Mesh(box, MAT.chestLid); lid.scale.set(0.86, 0.25, 0.66); lid.position.y = 0.62; ch.add(base, lid);
+    const gx = Math.min(GW - 2, cr.cx + 1), gz = cr.cz; ch.position.set(gx + 0.5, 0, gz + 0.5); levelGroup.add(ch);
+    features.push({ type: 'chest', gx, gz, mesh: ch, opened: false }); }
+  const eCount = 3 + Math.min(9, d + 1);
+  for (let i = 0; i < eCount; i++){ const r = rooms[1 + (rng() * (rooms.length - 1) | 0)]; if (!r) break;
+    spawnEnemy(r.x + 1 + rng() * (r.w - 2), r.z + 1 + rng() * (r.h - 2), d); }
+  setFloorName('The Depths · Floor ' + d, rooms.length + ' chambers'); syncCam(true);
+}
+function spawnEnemy(x, z, d){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), MAT.enemy); body.position.y = 0.6; g.add(body);
+  const e1 = new THREE.Mesh(box, MAT.enemyEye); e1.scale.set(0.12, 0.12, 0.12); e1.position.set(-0.16, 0.66, 0.4);
+  const e2 = e1.clone(); e2.position.x = 0.16; g.add(e1, e2);
+  g.position.set(x, 0, z); scene.add(g);
+  const lvl = d + (rng() * 3 | 0);
+  enemies.push({ name: ['Drifter', 'Mourner', 'Seeker', 'Wraith'][rng() * 4 | 0] + ' Lv' + lvl,
+    x, z, hp: 26 + lvl * 10, maxhp: 26 + lvl * 10, atk: 6 + lvl * 3, gold: 5 + lvl * 4,
+    mesh: g, body, alive: true, bob: rng() * 6 });
+}
+
+// ---------- input ----------
 const keys = {};
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyE') interact(); });
 addEventListener('keyup', e => { keys[e.code] = false; });
-
 const isTouch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
-let locked = false;
-const lockMsg = document.getElementById('lock-msg');
-const SENS = 0.0024;
-
-// desktop: pointer lock + mouse look
-if (!isTouch){
-  lockMsg.addEventListener('click', () => cv.requestPointerLock());
-  document.addEventListener('pointerlockchange', () => {
-    locked = document.pointerLockElement === cv; lockMsg.style.display = locked ? 'none' : 'flex';
-  });
-  addEventListener('mousemove', e => { if (!locked) return;
-    yaw.rotation.y -= e.movementX * SENS;
-    player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch - e.movementY * SENS));
-  });
-} else {
-  // mobile: hide pointer-lock prompt, show touch controls
-  document.getElementById('lock-sub').textContent = 'Left side to move · drag right side to look · ✦ to interact.';
-  lockMsg.querySelector('.play').textContent = 'Begin';
-  lockMsg.addEventListener('click', () => { lockMsg.style.display = 'none'; locked = true;
-    document.getElementById('stick').style.display = 'block';
-    document.querySelectorAll('.fab').forEach(f => f.style.display = 'flex'); });
-}
-
-// touch: left half = move stick, right half = look
+const move = { x: 0, z: 0 };
 const stickEl = document.getElementById('stick'), knob = document.getElementById('knob'), ring = document.getElementById('ring');
-let moveTouch = null, moveVec = { x: 0, y: 0 }, lookTouch = null, lastLook = null;
-function onTouchStart(e){
-  for (const t of e.changedTouches){
-    if (t.clientX < innerWidth * 0.46 && moveTouch === null){
-      moveTouch = t.identifier; ring.style.left = knob.style.left = t.clientX + 'px';
-      ring.style.top = knob.style.top = t.clientY + 'px'; ring.style.opacity = knob.style.opacity = '1'; ring._ox = t.clientX; ring._oy = t.clientY;
-    } else if (t.clientX >= innerWidth * 0.46 && lookTouch === null){
-      lookTouch = t.identifier; lastLook = { x: t.clientX, y: t.clientY };
-    }
-  }
-}
-function onTouchMove(e){
-  for (const t of e.changedTouches){
-    if (t.identifier === moveTouch){
-      let dx = t.clientX - ring._ox, dy = t.clientY - ring._oy; const d = Math.hypot(dx, dy), max = 46;
-      if (d > max){ dx = dx / d * max; dy = dy / d * max; }
-      knob.style.left = (ring._ox + dx) + 'px'; knob.style.top = (ring._oy + dy) + 'px';
-      moveVec.x = dx / max; moveVec.y = dy / max;
-    } else if (t.identifier === lookTouch){
-      yaw.rotation.y -= (t.clientX - lastLook.x) * 0.005;
-      player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch - (t.clientY - lastLook.y) * 0.005));
-      lastLook = { x: t.clientX, y: t.clientY };
-    }
-  }
-  e.preventDefault();
-}
-function onTouchEnd(e){
-  for (const t of e.changedTouches){
-    if (t.identifier === moveTouch){ moveTouch = null; moveVec.x = moveVec.y = 0; knob.style.opacity = ring.style.opacity = '0'; }
-    if (t.identifier === lookTouch){ lookTouch = null; }
-  }
-}
-cv.addEventListener('touchstart', onTouchStart, { passive: false });
-cv.addEventListener('touchmove', onTouchMove, { passive: false });
-cv.addEventListener('touchend', onTouchEnd);
-cv.addEventListener('touchcancel', onTouchEnd);
-
-let wantJump = false;
-document.getElementById('fab-jump').addEventListener('touchstart', e => { e.preventDefault(); wantJump = true; });
+let mt = null;
+stickEl.addEventListener('touchstart', e => { const t = e.changedTouches[0]; mt = t.identifier;
+  ring._ox = t.clientX; ring._oy = t.clientY; ring.style.left = knob.style.left = t.clientX + 'px'; ring.style.top = knob.style.top = t.clientY + 'px';
+  ring.style.opacity = knob.style.opacity = '1'; e.preventDefault(); }, { passive: false });
+stickEl.addEventListener('touchmove', e => { for (const t of e.changedTouches){ if (t.identifier !== mt) continue;
+  let dx = t.clientX - ring._ox, dy = t.clientY - ring._oy; const d = Math.hypot(dx, dy), max = 48;
+  if (d > max){ dx = dx / d * max; dy = dy / d * max; } knob.style.left = (ring._ox + dx) + 'px'; knob.style.top = (ring._oy + dy) + 'px';
+  move.x = dx / max; move.z = -dy / max; } e.preventDefault(); }, { passive: false });
+const endStick = e => { for (const t of e.changedTouches) if (t.identifier === mt){ mt = null; move.x = move.z = 0; knob.style.opacity = ring.style.opacity = '0'; } };
+stickEl.addEventListener('touchend', endStick); stickEl.addEventListener('touchcancel', endStick);
 document.getElementById('fab-act').addEventListener('touchstart', e => { e.preventDefault(); interact(); });
 
-function interact(){ flashHud('✦ Nothing here yet — systems coming online…'); }
-
-// ---------- movement + physics ----------
-const SPEED = 6.2, JUMP = 7.6, GRAV = 22, MAXSTEP = 1.4;
+// ---------- movement + collision ----------
+const R = 0.32, SPEED = 5.4;
 function tryMove(nx, nz){
-  // per-axis cliff blocking: can't step up more than MAXSTEP
-  const footH = heightAt(player.x, player.z);
-  if (Math.abs(nx - player.x) > 1e-4){ const h = heightAt(nx, player.z); if (h - footH <= MAXSTEP) player.x = nx; }
-  if (Math.abs(nz - player.z) > 1e-4){ const h = heightAt(player.x, nz); if (h - footH <= MAXSTEP) player.z = nz; }
-  const lim = HALF - 1.2; player.x = Math.max(-lim, Math.min(lim, player.x)); player.z = Math.max(-lim, Math.min(lim, player.z));
+  if (walkable(nx - R, hero.z - R) && walkable(nx + R, hero.z - R) && walkable(nx - R, hero.z + R) && walkable(nx + R, hero.z + R)) hero.x = nx;
+  if (walkable(hero.x - R, nz - R) && walkable(hero.x + R, nz - R) && walkable(hero.x - R, nz + R) && walkable(hero.x + R, nz + R)) hero.z = nz;
 }
+let state = 'play'; // play | battle | dead
 function update(dt){
-  // movement input
-  let mf = 0, ms = 0;
-  if (keys['KeyW'] || keys['ArrowUp']) mf += 1; if (keys['KeyS'] || keys['ArrowDown']) mf -= 1;
-  if (keys['KeyD'] || keys['ArrowRight']) ms += 1; if (keys['KeyA'] || keys['ArrowLeft']) ms -= 1;
-  if (isTouch){ mf += -moveVec.y; ms += moveVec.x; }
-  const len = Math.hypot(mf, ms); if (len > 1){ mf /= len; ms /= len; }
-  const yawA = yaw.rotation.y;
-  const fx = -Math.sin(yawA), fz = -Math.cos(yawA), rx = Math.cos(yawA), rz = -Math.sin(yawA);
-  const moving = len > 0.05;
-  if (moving){ tryMove(player.x + (fx * mf + rx * ms) * SPEED * dt, player.z + (fz * mf + rz * ms) * SPEED * dt); }
-  // gravity / jump
-  const groundY = heightAt(player.x, player.z) + EYE;
-  if ((keys['Space'] || wantJump) && player.grounded){ player.vy = JUMP; player.grounded = false; }
-  wantJump = false;
-  player.vy -= GRAV * dt; player.y += player.vy * dt;
-  if (player.y <= groundY){ player.y = groundY; player.vy = 0; player.grounded = true; }
-  // head-bob
-  player.bob = moving && player.grounded ? Math.sin(performance.now() * 0.011) * 0.09 : player.bob * 0.85;
-  // apply to rig
-  yaw.position.set(player.x, player.y + player.bob, player.z);
-  camera.rotation.x = player.pitch;
+  if (state !== 'play') return;
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) iz += 1; if (keys['KeyS'] || keys['ArrowDown']) iz -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1; if (keys['KeyA'] || keys['ArrowLeft']) ix -= 1;
+  if (isTouch){ ix += move.x; iz += move.z; }
+  const len = Math.hypot(ix, iz);
+  if (len > 0.06){ const nrm = Math.min(1, len); ix /= len; iz /= len;
+    const wx = RIGHT.x * ix + FWD.x * iz, wz = RIGHT.z * ix + FWD.z * iz;
+    tryMove(hero.x + wx * SPEED * dt * nrm, hero.z + wz * SPEED * dt * nrm);
+    hero.dir = Math.atan2(wx, wz);
+  }
+  hero.group.rotation.y += (hero.dir - hero.group.rotation.y) * Math.min(1, dt * 14);
+  hero.group.position.set(hero.x, len > 0.06 ? Math.abs(Math.sin(performance.now() * 0.012)) * 0.08 : 0, hero.z);
+  heroLight.position.set(hero.x, 2.2, hero.z);
+  for (const en of enemies){ if (!en.alive) continue;
+    en.bob += dt * 3; en.mesh.position.y = 0.05 + Math.abs(Math.sin(en.bob)) * 0.1; en.body.rotation.y += dt * 1.2;
+    const dx = hero.x - en.x, dz = hero.z - en.z, dd = Math.hypot(dx, dz) || 1;
+    if (dd < 8 && dd > 0.75){ const s = 2.6 * dt / dd; const ex = en.x + dx * s, ez = en.z + dz * s;
+      if (walkable(ex, en.z)) en.x = ex; if (walkable(en.x, ez)) en.z = ez; en.mesh.position.x = en.x; en.mesh.position.z = en.z; }
+    if (dd <= 0.78){ openBattle(en); break; }
+  }
+  updatePrompt();
 }
+
+// ---------- interact / prompt ----------
+function nearFeature(){ for (const f of features){ if (f.opened) continue;
+  if (Math.hypot(hero.x - (f.gx + 0.5), hero.z - (f.gz + 0.5)) < 1.4) return f; } return null; }
+const promptEl = document.getElementById('prompt');
+function updatePrompt(){ const f = nearFeature();
+  if (f){ promptEl.textContent = f.type === 'portal' ? '✦ Descend into the Depths (E)' : f.type === 'stairs' ? '▼ Go deeper (E)' : '✦ Open chest (E)';
+    promptEl.classList.add('show'); } else promptEl.classList.remove('show'); }
+function interact(){ if (state !== 'play') return; const f = nearFeature(); if (!f) return;
+  if (f.type === 'portal') fadeTo(() => genDungeon(1));
+  else if (f.type === 'stairs') fadeTo(() => genDungeon(depth + 1));
+  else if (f.type === 'chest'){ f.opened = true; f.mesh.children[1].position.y = 0.5; f.mesh.children[1].rotation.x = -0.8;
+    const g = 20 + depth * 12 + (rng() * 30 | 0); hero.gold += g; save(); flashName('✦ +' + g + ' gold'); }
+}
+
+// ---------- battle (simple auto-resolve for now; full panel port later) ----------
+let curEnemy = null;
+const battleEl = document.getElementById('battle'), blogEl = document.getElementById('blog'), btitle = document.getElementById('btitle');
+const bf = document.getElementById('bfight');
+function openBattle(en){ if (state !== 'play') return; state = 'battle'; curEnemy = en;
+  btitle.textContent = 'A ' + en.name + ' blocks your path'; blogEl.innerHTML = ''; bf.textContent = '⚔ Fight'; bf.disabled = false;
+  bf.onclick = runBattle; battleEl.style.display = 'flex'; }
+function log(s){ blogEl.innerHTML += s + '<br>'; blogEl.scrollTop = blogEl.scrollHeight; }
+function runBattle(){ bf.disabled = true; const en = curEnemy;
+  const step = () => {
+    const dmg = Math.round(hero.atk * (0.85 + Math.random() * 0.3)); en.hp -= dmg;
+    log(`You strike the ${en.name.split(' ')[0]} for <b style="color:#5ce6a4">${dmg}</b>.`);
+    if (en.hp <= 0){ en.alive = false; scene.remove(en.mesh); hero.gold += en.gold; save();
+      log(`<b style="color:#ffd479">The Hollow dissolves. +${en.gold} gold.</b>`);
+      bf.textContent = 'Continue'; bf.disabled = false;
+      bf.onclick = () => { battleEl.style.display = 'none'; state = 'play'; }; return; }
+    const edmg = Math.round(en.atk * (0.85 + Math.random() * 0.3)); hero.hp = Math.max(0, hero.hp - edmg); updateHp();
+    log(`${en.name.split(' ')[0]} hits you for <b style="color:#ff7a8a">${edmg}</b>.`);
+    if (hero.hp <= 0){ log(`<b style="color:#ff8a8a">You are overwhelmed…</b>`); setTimeout(die, 700); return; }
+    setTimeout(step, 520);
+  };
+  setTimeout(step, 220);
+}
+function die(){ state = 'dead'; battleEl.style.display = 'none'; document.getElementById('dead').style.display = 'flex'; }
+document.getElementById('revive-btn').onclick = () => { document.getElementById('dead').style.display = 'none'; hero.hp = hero.maxhp; state = 'play'; fadeTo(() => buildHub()); };
+
+// ---------- fade transition ----------
+let fade = 0, fadeDir = 0, fadeCb = null;
+const fadeEl = document.createElement('div');
+fadeEl.style.cssText = 'position:fixed;inset:0;z-index:20;background:#05070d;opacity:0;pointer-events:none;';
+document.body.appendChild(fadeEl);
+function fadeTo(cb){ if (fadeDir) return; fadeDir = 1; fadeCb = cb; }
+function updateFade(dt){ if (fadeDir === 1){ fade = Math.min(1, fade + dt * 3); fadeEl.style.opacity = fade;
+    if (fade >= 1){ fadeCb && fadeCb(); fadeCb = null; fadeDir = -1; } }
+  else if (fadeDir === -1){ fade = Math.max(0, fade - dt * 2.4); fadeEl.style.opacity = fade; if (fade <= 0) fadeDir = 0; } }
+
+// ---------- camera ----------
+function syncCam(snap){ const tx = hero.x, tz = hero.z; const desired = _p.set(tx + CAM_OFF.x, CAM_OFF.y, tz + CAM_OFF.z);
+  if (snap) camera.position.copy(desired); else camera.position.lerp(desired, 0.12); camera.lookAt(tx, 0.6, tz); }
 
 // ---------- HUD ----------
-const hud = document.getElementById('hud'), biomeEl = document.getElementById('biome');
-const BIOME_NAME = { meadow: 'Verdant Meadow', forest: 'Whispering Forest', stone: 'Skybound Peaks', snow: 'Frostpeak Tundra', sand: 'Aether Shore' };
-let lastBiome = '', biomeT = 0, hudT = 0;
-function flashHud(msg){ hud.dataset.msg = msg; hud._t = 2.2; }
-function updateHud(dt){
-  const b = biomeAt(player.x, player.z);
-  if (b !== lastBiome){ lastBiome = b; biomeEl.textContent = BIOME_NAME[b] || b; biomeEl.classList.add('show'); biomeT = 2.4; }
-  if (biomeT > 0 && (biomeT -= dt) <= 0) biomeEl.classList.remove('show');
-  hudT += dt; if (hudT > 0.2){ hudT = 0;
-    let s = `<b>ASTRARI 3D</b> · ${BIOME_NAME[b] || b}`;
-    if (hud._t > 0){ hud._t -= 0.2; s += `<br>${hud.dataset.msg}`; }
-    hud.innerHTML = s;
-  }
-}
+const hudEl = document.getElementById('hud'), hpfill = document.getElementById('hpfill'), floornameEl = document.getElementById('floorname');
+function updateHud(){ hudEl.innerHTML = `<span class="gold">✦ ${hero.gold}</span> gold${mode === 'dungeon' ? ' · Floor ' + depth : ''}<br><span class="hp">❤ ${hero.hp}/${hero.maxhp}</span>`; }
+function updateHp(){ hpfill.style.width = Math.max(0, hero.hp / hero.maxhp * 100) + '%'; updateHud(); }
+let nameT = 0;
+function setFloorName(a, b){ floornameEl.innerHTML = a + (b ? `<br><span style="font-size:11px;opacity:.8">${b}</span>` : ''); floornameEl.classList.add('show'); nameT = 2.6; }
+function flashName(s){ floornameEl.innerHTML = s; floornameEl.classList.add('show'); nameT = 1.6; }
 
-// ---------- loop ----------
-function resize(){ camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
+// ---------- save ----------
+function save(){ try { localStorage.setItem('astrari3d', JSON.stringify({ gold: hero.gold })); } catch (e) {} updateHud(); }
+try { const s = JSON.parse(localStorage.getItem('astrari3d') || '{}'); if (s.gold) hero.gold = s.gold; } catch (e) {}
+
+// ---------- boot ----------
+function resize(){ renderer.setSize(innerWidth, innerHeight); viewSize = Math.max(8, Math.min(12, innerHeight / 78)); setCamFrustum(); }
 addEventListener('resize', resize); resize();
+buildHub();
+document.getElementById('start-btn').onclick = () => { document.getElementById('start').style.display = 'none';
+  if (isTouch){ stickEl.style.display = 'block'; document.getElementById('fab-act').style.display = 'flex'; } };
+if (isTouch) document.getElementById('start-sub').innerHTML = 'Move with the <b>left thumbstick</b>. Reach the glowing <b>portal</b> and tap <b>✦</b> to descend. Bump a Hollow to fight; find the <b>▼</b> stairs to go deeper.';
 
 let last = performance.now();
-document.getElementById('loading').style.display = 'none';
-function loop(){
-  const now = performance.now(); let dt = (now - last) / 1000; last = now; dt = Math.min(dt, 0.05);
-  if (locked) update(dt);
-  updateHud(dt);
-  water.material.opacity = 0.74 + 0.08 * Math.sin(now * 0.001);
-  for (const cr of crystals){ cr.rotation.y += dt * 0.8; cr.position.y += Math.sin(now * 0.002 + cr.position.x) * 0.004; }
-  clouds.position.x = (now * 0.0008) % 20;
-  renderer.render(scene, camera);
-  requestAnimationFrame(loop);
+function loop(){ const now = performance.now(); let dt = (now - last) / 1000; last = now; dt = Math.min(dt, 0.05);
+  update(dt); updateFade(dt); syncCam(false);
+  if (nameT > 0 && (nameT -= dt) <= 0) floornameEl.classList.remove('show');
+  for (const f of features){ if (f.type === 'portal') f.mesh.rotation.z += dt * 0.8; else if (f.type === 'stairs') f.mesh.rotation.y += dt * 0.6; }
+  renderer.render(scene, camera); requestAnimationFrame(loop);
 }
 loop();
